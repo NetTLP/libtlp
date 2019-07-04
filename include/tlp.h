@@ -173,7 +173,7 @@ static int tlp_calculate_lstdw(uintptr_t addr, size_t count)
 
 	start = (addr >> 2) << 2;
 	end = addr + count;
-	if (end & 0x3 == 0)
+	if ((end & 0x3) == 0)
 		end_start = end - 4;
 	else
 		end_start = (end >> 2) << 2;
