@@ -23,7 +23,7 @@ void hexdump(void *buf, int len)
         int n;
         unsigned char *p = buf;
 
-        printf("Hex dump\n");
+        printf("\nHex dump\n");
 
         for (n = 0; n < len; n++) {
                 printf("%02x", p[n]);
@@ -33,8 +33,25 @@ void hexdump(void *buf, int len)
                 if ((n + 1) % 32 == 0)
                         printf("\n");
         }
-        printf("\n\n");
+        printf("\n");
 }
 
+void asciidump(void *buf, int len)
+{
+        int n;
+        unsigned char *p = buf;
+
+        printf("\nASCII dump\n");
+
+        for (n = 0; n < len; n++) {
+                printf("%c", p[n]);
+
+                if ((n + 1) % 4 == 0)
+                        printf(" ");
+                if ((n + 1) % 32 == 0)
+                        printf("\n");
+        }
+        printf("\n");
+}
 
 #endif /* _TLP_TEST_UTIL_H_ */

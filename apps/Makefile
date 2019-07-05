@@ -4,7 +4,7 @@ LDFLAGS := -L../lib
 LDLIBS  := -ltlp
 CFLAGS  := -g -Wall $(INCLUDE)
 
-PROGNAME = pmem
+PROGNAME = dma_read dma_write pmem
 
 all: $(PROGNAME)
 

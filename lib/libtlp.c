@@ -261,6 +261,14 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 		if (ret < 0)
 			goto err_out;
 
+		if (!(tlp_is_cpl(ch.tlp.fmt_type) &&
+		      tlp_is_w_data(ch.tlp.fmt_type))) {
+			/* invalid data type */
+			errno = EBADMSG;
+			ret = -1;
+			goto err_out;
+		}
+
 		if (tlp_cpl_status(ch.stcnt) != TLP_CPL_STATUS_SC) {
 			switch (tlp_cpl_status(ch.stcnt)) {
 			case TLP_CPL_STATUS_UR:

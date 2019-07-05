@@ -55,8 +55,11 @@ int pmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
 	addr = tlp_mr_addr(mh);
 	data_len = tlp_mwr_data_length(mh);	/* actuary transfer data len */
 
+	pr_info("MRd to 0x%lx, %lu byte\n", (addr >> 2) << 2, data_len);
+
 	if (addr < p->addr || addr + len > p->addr + p->size) {
-		pr_err("MRd request stick out of the pseudo memory region\n");
+		pr_err("MRd request to 0x%lx, "
+		       "stick out of the pseudo memory region\n", addr);
 		send_cpl_abort(nt, mh);
 		return -1;
 	}
@@ -109,10 +112,11 @@ int pmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
 	
 	addr = tlp_mr_addr(mh);
 	
-	pr_info("MWr to %#lx, %lu byte\n", addr, count);
+	pr_info("MWr to 0x%lx, %lu byte\n", addr, count);
 
 	if (addr < p->addr || addr + count > p->addr + p->size) {
-		pr_err("MWr stick out of the pseudo memory region\n");
+		pr_err("MWr request to 0x%lx, "
+		       "stick out of the pseudo memory region\n", addr);
 		send_cpl_abort(nt, mh);
 		return -1;
 	}
@@ -209,7 +213,7 @@ int main(int argc, char **argv)
 	cb.mrd = pmem_mrd;
 	cb.mwr = pmem_mwr;
 
-	printf("start pmem callback, start address is 0x%#lx\n", addr);
+	printf("start pmem callback, start address is %#lx\n", addr);
 
 	nettlp_run_cb(&nt, &cb, &pmem);
 
