@@ -158,60 +158,21 @@ struct tlp_mr_hdr {
  * tlp_calculate_fstdw() returns 4bit 1st DW BE
  * tlp_calculate_length() returns 4DW length:
  */
-#if 0
-#define tlp_calculate_lstdw(addr, cnt)			\
-	((addr + cnt) & 0x3 ?				\
-	 (~(0xF << ((addr + cnt) & 0x3)) & 0xF) : 0xF)
-
-#define tlp_calculate_fstdw(addr)	((0xF << (addr & 0x3)) & 0xF)
-#endif
+int tlp_calculate_lstdw(uintptr_t addr, size_t count);
+int tlp_calculate_fstdw(uintptr_t addr, size_t count);
+int tlp_calculate_length(uintptr_t addr, size_t count);
 
 
-static int tlp_calculate_lstdw(uintptr_t addr, size_t count)
-{
-	uintptr_t end, end_start, start;
+/* tlp_mwr_calculate_data_length():
+ * returns actual data length of MWr request taking
+ * Last DW and 1st DW BE in considerration.
+ */
+int tlp_mwr_calculate_data_length(struct tlp_mr_hdr *mh);
 
-	start = (addr >> 2) << 2;
-	end = addr + count;
-	if ((end & 0x3) == 0)
-		end_start = end - 4;
-	else
-		end_start = (end >> 2) << 2;
-
-	/* corner case. count is smaller than 8*/
-	if (end_start <= start)
-		end_start = addr + 4;
-	if (end < end_start)
-		return 0;
-
-	return ~(0xF << (end - end_start)) & 0xF;
-}
-
-static int tlp_calculate_fstdw(uintptr_t addr, size_t count)
-{
-	uint8_t be = 0xF;
-
-	if (count < 4)
-		be = ~(0xF << count) & 0xF;
-
-	return (be << (addr & 0x3)) & 0xF;
-}
-
-static int tlp_calculate_length(uintptr_t addr, size_t count)
-{
-	size_t len = 0;
-	uintptr_t start, end;
-
-	start = addr & 0xFFFFFFFFFFFFFFFc;
-	end = addr + count;
-
-	len = (end - start) >> 2;
-
-	if ((end - start) & 0x3)
-		len++;
-
-	return len;
-}
+/* tlp_mwr_data():
+ * returns a pointer where actual payload starts.
+ */
+void *tlp_mwr_data(struct tlp_mr_hdr *mh);
 
 
 
@@ -258,5 +219,12 @@ struct tlp_cpl_hdr {
 #define tlp_cpl_bcnt(sc) (ntohs(sc) & TLP_CPL_BCNT_MASK)
 #define tlp_set_cpl_bcnt(sc, v) \
 	(sc = htons((ntohs(sc) &= ~TLP_BCNT_MASK) | v))
+
+/* tlp_cpld_calculate_data_length():
+ * returns actual data length of MWr request taking
+ * Last DW and 1st DW BE in considerration.
+ */
+int tlp_cpld_calculate_data_length(struct tlp_mr_hdr *mh);
+
 
 #endif	/* _TLP_H_ */

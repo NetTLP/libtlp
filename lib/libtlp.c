@@ -4,6 +4,7 @@
 #include <stdio.h>	/* for debug */
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -13,6 +14,129 @@
 #include <tlp.h>
 
 #define LIBTLP_CPL_TIMEOUT	500	/* msec */
+
+
+/* for debug use */
+static void hexdump(void *buf, int len)
+{
+        int n;
+        unsigned char *p = buf;
+
+        printf("Hex dump\n");
+
+        for (n = 0; n < len; n++) {
+                printf("%02x", p[n]);
+
+                if ((n + 1) % 2 == 0)
+                        printf(" ");
+                if ((n + 1) % 32 == 0)
+                        printf("\n");
+        }
+        printf("\n\n");
+}
+
+
+/* utilities for parsing TLP headers */
+
+int tlp_calculate_lstdw(uintptr_t addr, size_t count)
+{
+	uintptr_t end, end_start, start;
+
+	start = (addr >> 2) << 2;
+	end = addr + count;
+	if ((end & 0x3) == 0)
+		end_start = end - 4;
+	else
+		end_start = (end >> 2) << 2;
+
+	/* corner case. count is smaller than 8*/
+	if (end_start <= start)
+		end_start = addr + 4;
+	if (end < end_start)
+		return 0;
+
+	return ~(0xF << (end - end_start)) & 0xF;
+}
+
+int tlp_calculate_fstdw(uintptr_t addr, size_t count)
+{
+	uint8_t be = 0xF;
+
+	if (count < 4)
+		be = ~(0xF << count) & 0xF;
+
+	return (be << (addr & 0x3)) & 0xF;
+}
+
+int tlp_calculate_length(uintptr_t addr, size_t count)
+{
+	size_t len = 0;
+	uintptr_t start, end;
+
+	start = addr & 0xFFFFFFFFFFFFFFFc;
+	end = addr + count;
+
+	len = (end - start) >> 2;
+
+	if ((end - start) & 0x3)
+		len++;
+
+	return len;
+}
+
+
+int tlp_mwr_calculate_data_length(struct tlp_mr_hdr *mh)
+{
+	int n;
+	uint32_t len;
+
+	len = tlp_length(mh->tlp.falen);
+
+	if (mh->fstdw && mh->fstdw != 0xF) {
+		for (n = 0; n < 3; n++) {
+			if ((mh->fstdw & (0x1 << n)) == 0) {
+				/* this bit is not used. padding! */
+				len--;
+			}
+		}
+	}
+
+	if (mh->lstdw && mh->lstdw != 0xF) {
+		for (n = 0; n < 3; n++) {
+			if ((mh->lstdw & (0x8 >> n)) == 0) {
+				/* this bit is not used, padding! */
+				len--;
+			}
+		}
+	}
+
+	return len;
+}
+
+void *tlp_mwr_data(struct tlp_mr_hdr *mh)
+{
+	int n;
+	void *p;
+
+	p = tlp_is_3dw(mh->tlp.fmt_type) ?
+		((char *)mh) + 4 : ((char *)mh) + 8;
+
+	if (mh->fstdw && mh->fstdw != 0xF) {
+		for (n = 0; n < 3; n++) {
+			if ((mh->fstdw & (0x1 << n)) == 0) {
+				p++;
+			}
+		}
+	}
+
+	return p;
+}
+
+int tlp_cpld_calculate_data_length(struct tlp_mr_hdr *mh)
+{
+	return 0;
+}
+
 
 
 
@@ -57,8 +181,9 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 {
 	int ret = 0;
 	ssize_t received;
+	char rest[16];	/* additional buffer for gap of 4WD-aligned bytes */
 	struct pollfd x[1];
-	struct iovec iov[3];
+	struct iovec iov[4];
 	struct nettlp_hdr nh;
 	struct tlp_cpl_hdr ch;
 
@@ -66,7 +191,8 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 	iov[0].iov_len = sizeof(nh);
 	iov[1].iov_base = &ch;
 	iov[1].iov_len = sizeof(ch);
-
+	iov[3].iov_base = rest;
+	iov[3].iov_len = sizeof(rest);
 	x[0].fd = nt->sockfd;
 	x[0].events = POLLIN;
 
@@ -86,7 +212,10 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 
 		iov[2].iov_base = buf + received;
 		iov[2].iov_len = count - received;
-		ret = readv(nt->sockfd, iov, 3);
+		ret = readv(nt->sockfd, iov, 4);
+		if (ret < 0)
+			goto err_out;
+
 		if (tlp_cpl_status(ch.stcnt) != TLP_CPL_STATUS_SC) {
 			switch (tlp_cpl_status(ch.stcnt)) {
 			case TLP_CPL_STATUS_UR:
@@ -109,6 +238,41 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 		 * XXX: should check remaining buffer space
 		 */
 
+		if (ch.lowaddr & 0x3) {
+			/* note: iov[2].iov_len must be identical with
+			 * byte count. current buffer layout is:
+			 *
+			 * |-low & 0x3-|----byte cnt----|-Last BE-|
+			 * |----------------|---------------------------|
+			 *       iov[2]                iov[3]
+			 *
+			 * or
+			 *
+			 * |-low & 0x3-|-BC-|
+			 * |----|-------------------------------------|
+			 * iov[2]                iov[3]
+			 *
+			 * So, move bytecnt bytes from iov[2].base +
+			 * lowaddr & 0x3 across iov[2] and iov[3].
+			 */
+			int diff = iov[2].iov_len - (ch.lowaddr & 0x3);
+
+			if (diff > 0) {
+				memmove(iov[2].iov_base,
+					iov[2].iov_base + (ch.lowaddr & 0x3),
+					diff);
+
+				memmove(iov[2].iov_base + diff,
+					iov[3].iov_base,
+					ch.lowaddr & 0x3);
+			} else {
+				diff = (ch.lowaddr & 0x3) - iov[2].iov_len;
+				memmove(iov[2].iov_base,
+					iov[3].iov_base + diff,
+					tlp_cpl_bcnt(ch.stcnt));
+			}
+		}
+
 		if (tlp_length(ch.tlp.falen) ==
 		    ((ch.lowaddr & 0x3) + tlp_cpl_bcnt(ch.stcnt) + 3) >> 2) {
 
@@ -117,14 +281,6 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 			 * pci-express-tlp-pcie-primer-tutorial-guide-1
 			 */
 			received += tlp_cpl_bcnt(ch.stcnt);
-
-			/* XXX: this code slightly causes buffer overflow */
-			if (ch.lowaddr & 0x3) {
-				memmove(iov[2].iov_base,
-					iov[2].iov_base + (ch.lowaddr & 0x3),
-					tlp_cpl_bcnt(ch.stcnt));
-			}
-
 			break;
 		} else {
 			received += tlp_length(ch.tlp.falen) << 2;
@@ -235,7 +391,7 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 	if (mh.fstdw && mh.fstdw != 0xF) {
 		for (n = 0; n < 3; n++) {
 			if ((mh.fstdw & (0x1 << n)) == 0) {
-				/* this bit is not used. padding! */
+				/* this byte is not used. padding! */
 				iov[3].iov_len++;
 			}
 		}
@@ -244,7 +400,7 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 	if (mh.lstdw && mh.lstdw != 0xF) {
 		for (n = 0; n < 3; n++) {
 			if ((mh.lstdw & (0x8 >> n)) == 0) {
-				/* this bit is not used, padding! */
+				/* this byte is not used, padding! */
 				iov[5].iov_len++;
 			}
 		}
@@ -262,4 +418,57 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 
 	return ret - (iov[0].iov_len + iov[1].iov_len + iov[2].iov_len
 		      + iov[3].iov_len + iov[5].iov_len);
+}
+
+
+/*
+ * Callback API for pseudo memory process
+ */
+
+int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
+{
+	int ret = 0;
+	ssize_t received;
+	struct pollfd x[1];
+	char buf[4096];
+	struct nettlp_hdr *nh;
+	struct tlp_hdr *th;
+
+	x[0].fd = nt->sockfd;
+	x[1].events = POLLIN;
+
+	while (1) {
+
+		ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
+		if (ret < 0)
+			break;
+
+		if (ret == 0 || !x[0].revents & POLLIN)
+			continue;
+
+		ret = read(nt->sockfd, buf, sizeof(buf));
+		if (ret < 0)
+			break;
+
+		nh = (struct nettlp_hdr *)buf; /* currently, nothing to do */
+		th = (struct tlp_hdr *)(nh + 1);
+
+		if (tlp_is_mrd(th->fmt_type) && cb->mrd) {
+			/* memory read request */
+			cb->mrd((struct tlp_mr_hdr *)th, arg);
+		} else if (tlp_is_mwr(th->fmt_type) && cb->mwr) {
+			/* memory write request */
+
+
+		} else if (tlp_is_cpl(th->fmt_type) &&
+			   tlp_is_wo_data(th->fmt_type) && cb->cpl) {
+			/* completion without data */
+			cb->cpl((struct tlp_cpl_hdr *)th, arg);
+		} else if (tlp_is_cpl(th->fmt_type) &&
+			   tlp_is_w_data(th->fmt_type) && cb->cpld) {
+			/* completion with data */
+		}
+	}
+
+	return ret;
 }

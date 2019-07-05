@@ -41,7 +41,10 @@ struct nettlp {
 int nettlp_init(struct nettlp *nt);
 
 /*
+ * Direct Memory Access API
+ *
  * dma_read() and dma_write()
+ *
  * @nt: struct nettlp, must be initalized in advance.
  * @addr: address of DMA destination.
  * @buf: buffer to be written to or read from remote.
@@ -52,5 +55,17 @@ ssize_t dma_read(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
 ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
 		  
 		  
+/*
+ * Callback API for psuedo memory process
+ */
+struct nettlp_cb {
+	int (*mrd)(struct tlp_mr_hdr *mh, void *arg);
+	int (*mwr)(struct tlp_mr_hdr *mh, void *m, size_t count, void *arg);
+	int (*cpl)(struct tlp_cpl_hdr *ch, void *arg);
+	int (*cpld)(struct tlp_cpl_hdr *ch, void *m, size_t count, void *arg);
+};
+
+int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg);
+
 
 #endif /* _LIBTLP_H_ */
