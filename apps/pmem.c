@@ -89,17 +89,17 @@ int pmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
 		iov[2].iov_base = p->mem + (((addr >> 2) << 2) - p->addr);
 		iov[2].iov_len = send_len;
 
-		len -= send_len;
-		addr = ((addr >> 2) << 2) + send_len;
-		data_len -= send_len;
-
 		ret = writev(nt->sockfd, iov, 3);
 		if (ret < 0) {
 			pr_err("writev failed\n");
 			perror("writev");
 		}
 
-	} while (len > 0);
+		len -= send_len;
+		data_len -= send_len - (addr & 0x3);
+		addr = ((addr >> 2) << 2) + send_len;
+
+	} while (data_len > 0);
 
 	return 0;
 }
