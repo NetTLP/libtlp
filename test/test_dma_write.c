@@ -19,7 +19,6 @@ void usage(void)
 	       "    -b bus number, XX:XX\n"
 	       "    -t tag\n"
 	       "    -a dma address, 0xHEXADDR\n"
-	       "    -s transfer size (default 4-byte)\n"
 	       "    -p payload as ascii string (default )\n"
 		);
 }

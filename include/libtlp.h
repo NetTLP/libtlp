@@ -59,10 +59,12 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
  * Callback API for psuedo memory process
  */
 struct nettlp_cb {
-	int (*mrd)(struct tlp_mr_hdr *mh, void *arg);
-	int (*mwr)(struct tlp_mr_hdr *mh, void *m, size_t count, void *arg);
-	int (*cpl)(struct tlp_cpl_hdr *ch, void *arg);
-	int (*cpld)(struct tlp_cpl_hdr *ch, void *m, size_t count, void *arg);
+	int (*mrd)(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg);
+	int (*mwr)(struct nettlp *nt, struct tlp_mr_hdr *mh,
+		   void *m, size_t count, void *arg);
+	int (*cpl)(struct nettlp *nt, struct tlp_cpl_hdr *ch, void *arg);
+	int (*cpld)(struct nettlp *nt, struct tlp_cpl_hdr *ch,
+		    void *m, size_t count, void *arg);
 };
 
 int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg);

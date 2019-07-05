@@ -163,11 +163,16 @@ int tlp_calculate_fstdw(uintptr_t addr, size_t count);
 int tlp_calculate_length(uintptr_t addr, size_t count);
 
 
-/* tlp_mwr_calculate_data_length():
+/* tlp_mr_addr():
+ * returns target address of this memory request
+ */
+uintptr_t tlp_mr_addr(struct tlp_mr_hdr *mh);
+
+/* tlp_mwr_data_length():
  * returns actual data length of MWr request taking
  * Last DW and 1st DW BE in considerration.
  */
-int tlp_mwr_calculate_data_length(struct tlp_mr_hdr *mh);
+int tlp_mwr_data_length(struct tlp_mr_hdr *mh);
 
 /* tlp_mwr_data():
  * returns a pointer where actual payload starts.
@@ -212,19 +217,23 @@ struct tlp_cpl_hdr {
 #define TLP_CPL_STATUS_CRS	0x4000	/* Configratuon Request Retry Status */
 #define TLP_CPL_STATUS_CA	0x8000	/* Completer Abort */
 #define tlp_set_cpl_status(sc, v) \
-	(sc = htons((ntohs(sc) &= ~TLP_CPL_STATUS_MASK) | v))
+	(sc = htons((ntohs(sc) & ~TLP_CPL_STATUS_MASK) | v))
 
 
 #define TLP_CPL_BCNT_MASK	0x0FFF
 #define tlp_cpl_bcnt(sc) (ntohs(sc) & TLP_CPL_BCNT_MASK)
 #define tlp_set_cpl_bcnt(sc, v) \
-	(sc = htons((ntohs(sc) &= ~TLP_BCNT_MASK) | v))
+	(sc = htons((ntohs(sc) & ~TLP_CPL_BCNT_MASK) | v))
 
-/* tlp_cpld_calculate_data_length():
+/* tlp_cpld_data_length():
  * returns actual data length of MWr request taking
  * Last DW and 1st DW BE in considerration.
  */
-int tlp_cpld_calculate_data_length(struct tlp_mr_hdr *mh);
+int tlp_cpld_data_length(struct tlp_cpl_hdr *ch);
 
+/* tlp_cpld_data():
+ * returns pointer for data in CplD packet.
+ */
+void *tlp_cpld_data(struct tlp_cpl_hdr *ch);
 
 #endif	/* _TLP_H_ */

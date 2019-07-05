@@ -18,6 +18,7 @@ void usage(void)
 	       "    -L local port (default 14198)\n"
 	       "    -b bus number, XX:XX\n"
 	       "    -t tag\n"
+	       "    -a target address\n"
 	       "    -s transfer size (default 4-byte)\n"
 		);
 }

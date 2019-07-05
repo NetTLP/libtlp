@@ -49,7 +49,7 @@ int tlp_calculate_lstdw(uintptr_t addr, size_t count)
 	else
 		end_start = (end >> 2) << 2;
 
-	/* corner case. count is smaller than 8*/
+	/* corner case. count is smaller than 8 */
 	if (end_start <= start)
 		end_start = addr + 4;
 	if (end < end_start)
@@ -85,17 +85,43 @@ int tlp_calculate_length(uintptr_t addr, size_t count)
 }
 
 
-int tlp_mwr_calculate_data_length(struct tlp_mr_hdr *mh)
+uintptr_t tlp_mr_addr(struct tlp_mr_hdr *mh)
+{
+	int n;
+	uintptr_t addr;
+	uint32_t *addr32;
+	uint64_t *addr64;
+
+	if (tlp_is_3dw(mh->tlp.fmt_type)) {
+		addr32 = (uint32_t *)(mh + 1);
+		addr = be32toh(*addr32);
+	} else {
+		addr64 = (uint64_t *)(mh + 1);
+		addr = be64toh(*addr64);
+	}
+	
+	/* move forard the address in accordance with the 1st DW BE */
+	if (mh->fstdw && mh->fstdw != 0xF) {
+		for (n = 0; n < 3; n++) {
+			if ((mh->fstdw & (0x1 << n)) == 0) {
+				addr += 1;
+			}
+		}
+	}
+
+	return addr;
+}
+
+int tlp_mwr_data_length(struct tlp_mr_hdr *mh)
 {
 	int n;
 	uint32_t len;
 
-	len = tlp_length(mh->tlp.falen);
+	len = tlp_length(mh->tlp.falen) << 2;
 
 	if (mh->fstdw && mh->fstdw != 0xF) {
 		for (n = 0; n < 3; n++) {
 			if ((mh->fstdw & (0x1 << n)) == 0) {
-				/* this bit is not used. padding! */
 				len--;
 			}
 		}
@@ -104,7 +130,6 @@ int tlp_mwr_calculate_data_length(struct tlp_mr_hdr *mh)
 	if (mh->lstdw && mh->lstdw != 0xF) {
 		for (n = 0; n < 3; n++) {
 			if ((mh->lstdw & (0x8 >> n)) == 0) {
-				/* this bit is not used, padding! */
 				len--;
 			}
 		}
@@ -119,7 +144,7 @@ void *tlp_mwr_data(struct tlp_mr_hdr *mh)
 	void *p;
 
 	p = tlp_is_3dw(mh->tlp.fmt_type) ?
-		((char *)mh) + 4 : ((char *)mh) + 8;
+		((char *)(mh + 1)) + 4 : ((char *)(mh + 1)) + 8;
 
 	if (mh->fstdw && mh->fstdw != 0xF) {
 		for (n = 0; n < 3; n++) {
@@ -132,13 +157,33 @@ void *tlp_mwr_data(struct tlp_mr_hdr *mh)
 	return p;
 }
 
-int tlp_cpld_calculate_data_length(struct tlp_mr_hdr *mh)
+int tlp_cpld_data_length(struct tlp_cpl_hdr *ch)
 {
-	return 0;
+	/* if this is last CplD, byte count is actual byte length */
+	if (tlp_length(ch->tlp.falen) ==
+	    ((ch->lowaddr & 0x3) + tlp_cpl_bcnt(ch->stcnt) + 3) >> 2)
+		return tlp_cpl_bcnt(ch->stcnt);
+
+	/* if not, length - padding due to 4DW alignment */
+	return (tlp_length(ch->tlp.falen) << 2) - (ch->lowaddr & 0x3);
+}
+
+void *tlp_cpld_data(struct tlp_cpl_hdr *ch)
+{
+	void *p;
+
+	p = tlp_is_3dw(ch->tlp.fmt_type) ?
+		((char *)(ch + 1)) + 4 : ((char *)(ch + 1)) + 8;
+
+	/* shift for padding due to 4DW alignment */
+	p += (ch->lowaddr & 0x3);
+	return p;
 }
 
 
-
+/*
+ * nettlp
+ */
 
 int nettlp_init(struct nettlp *nt)
 {
@@ -233,11 +278,6 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 			}
 		}
 		
-		
-		/*
-		 * XXX: should check remaining buffer space
-		 */
-
 		if (ch.lowaddr & 0x3) {
 			/* note: iov[2].iov_len must be identical with
 			 * byte count. current buffer layout is:
@@ -246,14 +286,18 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 			 * |----------------|---------------------------|
 			 *       iov[2]                iov[3]
 			 *
+			 * So, move bytecnt bytes from iov[2].base +
+			 * (lowaddr & 0x3) across iov[2] and iov[3].
+			 * 
 			 * or
 			 *
 			 * |-low & 0x3-|-BC-|
 			 * |----|-------------------------------------|
 			 * iov[2]                iov[3]
 			 *
-			 * So, move bytecnt bytes from iov[2].base +
-			 * lowaddr & 0x3 across iov[2] and iov[3].
+			 * iov[2].len is shorter than (lowaddr & 0x3).
+			 * mv bytecnt bytes from iov[3] + ((lowaddr &
+			 * 0x3) - iov[2].len) to iov[2].
 			 */
 			int diff = iov[2].iov_len - (ch.lowaddr & 0x3);
 
@@ -433,9 +477,11 @@ int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
 	char buf[4096];
 	struct nettlp_hdr *nh;
 	struct tlp_hdr *th;
+	struct tlp_mr_hdr *mh;
+	struct tlp_cpl_hdr *ch;
 
 	x[0].fd = nt->sockfd;
-	x[1].events = POLLIN;
+	x[0].events = POLLIN;
 
 	while (1) {
 
@@ -452,21 +498,29 @@ int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
 
 		nh = (struct nettlp_hdr *)buf; /* currently, nothing to do */
 		th = (struct tlp_hdr *)(nh + 1);
+		mh = (struct tlp_mr_hdr *)th;
+		ch = (struct tlp_cpl_hdr *)th;
 
 		if (tlp_is_mrd(th->fmt_type) && cb->mrd) {
-			/* memory read request */
-			cb->mrd((struct tlp_mr_hdr *)th, arg);
-		} else if (tlp_is_mwr(th->fmt_type) && cb->mwr) {
-			/* memory write request */
 
+			cb->mrd(nt, mh, arg);
+
+		} else if (tlp_is_mwr(th->fmt_type) && cb->mwr) {
+
+			cb->mwr(nt, mh, tlp_mwr_data(mh),
+				tlp_mwr_data_length(mh),
+				arg);
 
 		} else if (tlp_is_cpl(th->fmt_type) &&
 			   tlp_is_wo_data(th->fmt_type) && cb->cpl) {
-			/* completion without data */
-			cb->cpl((struct tlp_cpl_hdr *)th, arg);
+
+			cb->cpl(nt, ch, arg);
+
 		} else if (tlp_is_cpl(th->fmt_type) &&
 			   tlp_is_w_data(th->fmt_type) && cb->cpld) {
-			/* completion with data */
+
+			cb->cpld(nt, ch, tlp_cpld_data(ch),
+				 tlp_cpld_data_length(ch), arg);
 		}
 	}
 
