@@ -47,6 +47,11 @@ int nettlp_init(struct nettlp *nt)
 	return 0;
 }
 
+
+/*
+ * Direct Memoy Access API
+ */
+
 static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 				size_t count)
 {
@@ -107,8 +112,6 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 		if (tlp_length(ch.tlp.falen) ==
 		    ((ch.lowaddr & 0x3) + tlp_cpl_bcnt(ch.stcnt) + 3) >> 2) {
 
-			printf("finished!\n");
-
 			/* last CplD.
 			 * see http://xillybus.com/tutorials/
 			 * pci-express-tlp-pcie-primer-tutorial-guide-1
@@ -125,7 +128,6 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 			break;
 		} else {
 			received += tlp_length(ch.tlp.falen) << 2;
-			printf("received = %lu\n", received);
 		}
 	}
 
@@ -231,7 +233,6 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 	 * is xx10, x100, or 1000. It needs padding.
 	 */
 	if (mh.fstdw && mh.fstdw != 0xF) {
-		printf("start padding, fstdw is %x\n", mh.fstdw);
 		for (n = 0; n < 3; n++) {
 			if ((mh.fstdw & (0x1 << n)) == 0) {
 				/* this bit is not used. padding! */
@@ -241,7 +242,6 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 	}
 
 	if (mh.lstdw && mh.lstdw != 0xF) {
-		printf("start padding, lstdw is %x\n", mh.lstdw);
 		for (n = 0; n < 3; n++) {
 			if ((mh.lstdw & (0x8 >> n)) == 0) {
 				/* this bit is not used, padding! */
@@ -259,12 +259,6 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 		/* failed to write the whole packet */
 		return -2;
 	}
-
-	printf("0 %ld, 1 %ld, 2 %ld, 3 %ld, 4 %ld, 5 %ld, ret %d\n",
-	       iov[0].iov_len, iov[1].iov_len,
-	       iov[2].iov_len, iov[3].iov_len,
-	       iov[4].iov_len, iov[5].iov_len, ret);
-	       
 
 	return ret - (iov[0].iov_len + iov[1].iov_len + iov[2].iov_len
 		      + iov[3].iov_len + iov[5].iov_len);
