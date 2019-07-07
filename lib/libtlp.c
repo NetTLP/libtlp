@@ -125,17 +125,18 @@ uintptr_t tlp_mr_addr(struct tlp_mr_hdr *mh)
 	
 	/* move forard the address in accordance with the 1st DW BE */
 	if (mh->fstdw && mh->fstdw != 0xF) {
-		for (n = 0; n < 3; n++) {
+		for (n = 0; n < 4; n++) {
 			if ((mh->fstdw & (0x1 << n)) == 0) {
 				addr += 1;
-			}
+			} else
+				break;
 		}
 	}
 
 	return addr;
 }
 
-int tlp_mwr_data_length(struct tlp_mr_hdr *mh)
+int tlp_mr_data_length(struct tlp_mr_hdr *mh)
 {
 	int n;
 	uint32_t len;
@@ -143,7 +144,7 @@ int tlp_mwr_data_length(struct tlp_mr_hdr *mh)
 	len = tlp_length(mh->tlp.falen) << 2;
 
 	if (mh->fstdw && mh->fstdw != 0xF) {
-		for (n = 0; n < 3; n++) {
+		for (n = 0; n < 4; n++) {
 			if ((mh->fstdw & (0x1 << n)) == 0) {
 				len--;
 			}
@@ -151,10 +152,11 @@ int tlp_mwr_data_length(struct tlp_mr_hdr *mh)
 	}
 
 	if (mh->lstdw && mh->lstdw != 0xF) {
-		for (n = 0; n < 3; n++) {
+		for (n = 0; n < 4; n++) {
 			if ((mh->lstdw & (0x8 >> n)) == 0) {
 				len--;
-			}
+			} else
+				break;
 		}
 	}
 
@@ -170,10 +172,11 @@ void *tlp_mwr_data(struct tlp_mr_hdr *mh)
 		((char *)(mh + 1)) + 4 : ((char *)(mh + 1)) + 8;
 
 	if (mh->fstdw && mh->fstdw != 0xF) {
-		for (n = 0; n < 3; n++) {
+		for (n = 0; n < 4; n++) {
 			if ((mh->fstdw & (0x1 << n)) == 0) {
 				p++;
-			}
+			} else
+				break;
 		}
 	}
 
@@ -539,7 +542,7 @@ int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
 		} else if (tlp_is_mwr(th->fmt_type) && cb->mwr) {
 
 			cb->mwr(nt, mh, tlp_mwr_data(mh),
-				tlp_mwr_data_length(mh),
+				tlp_mr_data_length(mh),
 				arg);
 
 		} else if (tlp_is_cpl(th->fmt_type) &&

@@ -53,7 +53,7 @@ int pmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
 
 	len = tlp_length(mh->tlp.falen) << 2;
 	addr = tlp_mr_addr(mh);
-	data_len = tlp_mwr_data_length(mh);	/* actuary transfer data len */
+	data_len = tlp_mr_data_length(mh);	/* actuary transfer data len */
 
 	pr_info("MRd to 0x%lx, %lu byte\n", (addr >> 2) << 2, data_len);
 

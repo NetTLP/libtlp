@@ -168,11 +168,11 @@ int tlp_calculate_length(uintptr_t addr, size_t count);
  */
 uintptr_t tlp_mr_addr(struct tlp_mr_hdr *mh);
 
-/* tlp_mwr_data_length():
- * returns actual data length of MWr request taking
+/* tlp_mr_data_length():
+ * returns actual data length of memoryrequest taking
  * Last DW and 1st DW BE in considerration.
  */
-int tlp_mwr_data_length(struct tlp_mr_hdr *mh);
+int tlp_mr_data_length(struct tlp_mr_hdr *mh);
 
 /* tlp_mwr_data():
  * returns a pointer where actual payload starts.
