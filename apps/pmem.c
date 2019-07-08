@@ -5,6 +5,11 @@
 #include <unistd.h>
 #include <sys/uio.h>
 #include <arpa/inet.h>
+#include <net/ethernet.h>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
+#include <arpa/inet.h>
+
 
 #include <libtlp.h>
 
@@ -20,7 +25,64 @@
 #define pr_err(fmt, ...) fprintf(stderr, "%s:ERR: " fmt,        \
                                  __func__, ##__VA_ARGS__)
 
+
 #define MAXPAYLOADSIZE	256
+
+
+void build_pkt(void *buf, int len, unsigned int id)
+{
+	struct ether_header *eth;
+	struct ip *ip;
+	struct udphdr *udp;
+
+	memset(buf, 0, len);
+
+	eth = (struct ether_header *)buf;
+	eth->ether_shost[0] = 0x01;
+	eth->ether_shost[1] = 0x02;
+	eth->ether_shost[2] = 0x03;
+	eth->ether_shost[3] = 0x04;
+	eth->ether_shost[4] = 0x05;
+	eth->ether_shost[5] = 0x06;
+
+	eth->ether_dhost[0] = 0xff;
+	eth->ether_dhost[1] = 0xff;
+	eth->ether_dhost[2] = 0xff;
+	eth->ether_dhost[3] = 0xff;
+	eth->ether_dhost[4] = 0xff;
+	eth->ether_dhost[5] = 0xff;
+
+	eth->ether_type = htons(ETHERTYPE_IP);
+
+	ip = (struct ip*)(eth + 1);
+	ip->ip_v	= IPVERSION;
+	ip->ip_hl       = 5;
+	ip->ip_id       = 0;
+	ip->ip_tos      = 0;
+	ip->ip_len      = htons(len - sizeof(*eth));
+	ip->ip_off      = 0;
+	ip->ip_ttl      = 16;
+	ip->ip_p	= IPPROTO_UDP;
+	ip->ip_sum      = 0;
+	ip->ip_src.s_addr = inet_addr("10.0.0.2");
+	ip->ip_dst.s_addr = inet_addr("10.0.0.1");
+
+
+	udp = (struct udphdr*)(ip + 1);
+	udp->uh_ulen    = htons(len - sizeof(*eth) - sizeof(*ip));
+	udp->uh_dport   = htons(60000);
+	udp->uh_sport   = htons(id);
+	udp->uh_sum     = 0;
+}
+
+void initialize_with_packets(void *p, int pktlen, int pktnum)
+{
+	int n;
+
+	for (n = 0; n < pktlen; n++)
+		build_pkt(p + (2048 * n), pktlen, 0);
+}
+
 
 struct pmem {
 	uintptr_t addr;
@@ -121,10 +183,13 @@ int pmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
 		return -1;
 	}
 
+	hexdump(m, count);
+
 	memcpy(p->mem + (addr - p->addr), m, count);
 
 	return 0;
 }
+
 
 void usage(void)
 {
@@ -135,6 +200,10 @@ void usage(void)
 	       "    -L local port (default 14198)\n"
 	       "    -b bus number, XX:XX\n"
 	       "    -a start addess (HEX)\n"
+	       "\n"
+	       "  initialize with packets option\n"
+	       "    -n nuber of packets\n"
+	       "    -s packet size\n"
 		);
 }
 
@@ -146,6 +215,7 @@ int main(int argc, char **argv)
 	struct nettlp_cb cb;
 	uintptr_t addr;
 	uint16_t busn, devn;
+	int pktnum, pktlen;
 
 	memset(&nt, 0, sizeof(nt));
 	nt.remote_port = 14198;
@@ -154,7 +224,10 @@ int main(int argc, char **argv)
 	busn = 0;
 	devn = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:")) != -1) {
+	pktnum = 0;
+	pktlen = 0;
+
+	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:n:s:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -192,6 +265,15 @@ int main(int argc, char **argv)
 		case 'a':
 			ret = sscanf(optarg, "0x%lx", &addr);
 			break;
+
+		case 'n':
+			pktnum = atoi(optarg);
+			break;
+
+		case 's':
+			pktlen = atoi(optarg);
+			break;
+
 		default :
 			usage();
 			return -1;
@@ -212,6 +294,12 @@ int main(int argc, char **argv)
 	memset(&cb, 0, sizeof(cb));
 	cb.mrd = pmem_mrd;
 	cb.mwr = pmem_mwr;
+
+	if (pktnum > 0 && pktlen >= 60) {
+		printf("initalize the region with %d %d-byte packets\n",
+		       pktnum, pktlen);
+		initialize_with_packets(pmem.mem, pktlen, pktnum);
+	}
 
 	printf("start pmem callback, start address is %#lx\n", addr);
 
