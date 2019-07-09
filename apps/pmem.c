@@ -28,6 +28,8 @@
 
 #define MAXPAYLOADSIZE	256
 
+static int nohex = 0;
+
 
 void build_pkt(void *buf, int len, unsigned int id)
 {
@@ -183,7 +185,8 @@ int pmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
 		return -1;
 	}
 
-	hexdump(m, count);
+	if (!nohex)
+		hexdump(m, count);
 
 	memcpy(p->mem + (addr - p->addr), m, count);
 
@@ -200,6 +203,7 @@ void usage(void)
 	       "    -L local port (default 14198)\n"
 	       "    -b bus number, XX:XX\n"
 	       "    -a start addess (HEX)\n"
+	       "    -H no hexdump\n"
 	       "\n"
 	       "  initialize with packets option\n"
 	       "    -n nuber of packets\n"
@@ -227,7 +231,7 @@ int main(int argc, char **argv)
 	pktnum = 0;
 	pktlen = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:n:s:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:Hn:s:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -264,6 +268,10 @@ int main(int argc, char **argv)
 
 		case 'a':
 			ret = sscanf(optarg, "0x%lx", &addr);
+			break;
+
+		case 'H':
+			nohex = 1;
 			break;
 
 		case 'n':
