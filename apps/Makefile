@@ -4,11 +4,11 @@ LDFLAGS := -L../lib
 LDLIBS  := -ltlp
 CFLAGS  := -g -Wall $(INCLUDE)
 
-PROGNAME = dma_read dma_write pmem
+PROGNAME = dma_read dma_write pmem process-list
 
 all: $(PROGNAME)
 
-.c.o:
+.c.o: util.h
 	$(CC) $< -o $@
 
 clean:

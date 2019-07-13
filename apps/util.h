@@ -44,7 +44,7 @@ void asciidump(void *buf, int len)
         printf("\nASCII dump\n");
 
         for (n = 0; n < len; n++) {
-                printf("%c", p[n]);
+		putc(p[n], stdout);
 
                 if ((n + 1) % 4 == 0)
                         printf(" ");
