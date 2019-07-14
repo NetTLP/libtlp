@@ -10,13 +10,18 @@
 
 
 /* from arch_x86/include/asm/page_64_types.h */
+#define KERNEL_IMAGE_SIZE	(512 * 1024 * 1024)
 //#define __PAGE_OFFSET_BASE      _AC(0xffff880000000000, UL)
 #define __PAGE_OFFSET_BASE      _AC(0xffff888000000000, UL)
 #define __PAGE_OFFSET           __PAGE_OFFSET_BASE
 #define __START_KERNEL_map      _AC(0xffffffff80000000, UL)
 
+
+
 /* from arch/x86/include/asm/page_types.h */
 #define PAGE_OFFSET	((unsigned long)__PAGE_OFFSET)
+
+#define phys_base	0x1000000	/* x86 */
 
 /* from arch/x86/mm/physaddr.c */
 unsigned long __phys_addr(unsigned long x)
@@ -25,10 +30,11 @@ unsigned long __phys_addr(unsigned long x)
 
 	/* use the carry flag to determine if x was < __START_KERNEL_map */
 	if (x > y) {
+		return 0;
 		//x = y + phys_base;
 
-		//VIRTUAL_BUG_ON(y >= KERNEL_IMAGE_SIZE);
-		return 0;
+		//if (y >= KERNEL_IMAGE_SIZE)
+		//return 0;
 	} else {
 		x = y + (__START_KERNEL_map - PAGE_OFFSET);
 
@@ -138,15 +144,16 @@ void dump_task_struct(struct task_struct *t)
 #define check_task_value(t, name)					\
 	do {								\
 		if(t->v##name == 0) {					\
-			fprintf(stderr,\
+			fprintf(stderr,					\
 				"failed to get address of v" #name	\
-				" %#lx\n", t->v##name);		\
+				" %#lx\n", t->v##name);			\
 			return -1;					\
 		}							\
 		if(t->p##name == 0) {					\
-			fprintf(stderr,\
-				"failed to get address of p" #name	\
-				" %#lx\n", t->v##name);			\
+			fprintf(stderr,					\
+				"failed to get physical address for p"	\
+				#name					\
+				" from %#lx\n", t->v##name);		\
 			return -1;					\
 		}							\
 	} while(0)							\
@@ -195,7 +202,7 @@ int fill_task_struct(struct nettlp *nt, uintptr_t vhead,
 
 void print_task_struct_column(void)
 {
-	printf("PhyAddr         PID STAT        COMMAND\n");
+	printf("PhyAddr        PID STAT        COMMAND\n");
 }
 	
 
@@ -225,7 +232,7 @@ void print_task_struct(struct nettlp *nt, struct task_struct t)
 
 	comm[TASK_COMM_LEN - 1] = '\0';	/* preventing overflow */
 
-	printf("%#lx: %6d    %c 0x%04lx %s\n",
+	printf("%#lx %6d    %c 0x%04lx %s\n",
 	       t.phead, pid, state_to_char(state), state, comm);
 }
 
@@ -235,7 +242,7 @@ int task(struct nettlp *nt, uintptr_t vhead, uintptr_t children)
 {
 	/*
 	 * vhead is kernel virtual address of task_struct.
-	 * pchildren is the vaddr of the parent's struct list_head children.
+	 * children is the vaddr of the parent's struct list_head children.
 	 */
 
 	int ret;
@@ -243,7 +250,7 @@ int task(struct nettlp *nt, uintptr_t vhead, uintptr_t children)
 	
 	ret = fill_task_struct(nt, vhead, &t);
 	if (ret < 0) {
-		fprintf(stderr, "failed to dma_read task_struct from %#lx\n",
+		fprintf(stderr, "failed to fill task_struct from %#lx\n",
 			vhead);
 		return ret;
 	}
@@ -253,8 +260,10 @@ int task(struct nettlp *nt, uintptr_t vhead, uintptr_t children)
 
 	if (t.children_next != t.vchildren) {
 		/* this task_struct has children. walk them  */
-		task(nt, t.children_next - OFFSET_HEAD_SIBLING,
-		     t.vchildren);
+		ret = task(nt, t.children_next - OFFSET_HEAD_SIBLING,
+			   t.vchildren);
+		if (ret < 0)
+			return ret;
 	}
 	
 	if (children == t.sibling_next) {
@@ -263,9 +272,7 @@ int task(struct nettlp *nt, uintptr_t vhead, uintptr_t children)
 	}
 
 	/* goto the next sibling */
-	task(nt, t.sibling_next - OFFSET_HEAD_SIBLING, children);
-
-	return 0;
+	return task(nt, t.sibling_next - OFFSET_HEAD_SIBLING, children);
 }
 
 void usage(void)
