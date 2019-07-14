@@ -2,3 +2,6 @@ dma_read
 dma_write
 pmem
 process-list
+pgd-walk
+
+core
