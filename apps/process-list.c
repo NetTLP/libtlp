@@ -30,8 +30,8 @@ unsigned long __phys_addr(unsigned long x)
 
 	/* use the carry flag to determine if x was < __START_KERNEL_map */
 	if (x > y) {
-		return 0;
-		//x = y + phys_base;
+		x = y + phys_base;
+		//return 0;
 
 		//if (y >= KERNEL_IMAGE_SIZE)
 		//return 0;
@@ -98,7 +98,7 @@ struct list_head {
 #define OFFSET_HEAD_CHILDREN	2240
 #define OFFSET_HEAD_SIBLING	2256
 #define OFFSET_HEAD_COMM	2632
-
+#define OFFSET_HEAD_REAL_PARENT	2224
 
 #define TASK_COMM_LEN		16
 
@@ -109,6 +109,7 @@ struct task_struct {
 	uintptr_t	vchildren, pchildren;
 	uintptr_t	vsibling, psibling;
 	uintptr_t	vcomm, pcomm;
+	uintptr_t	vreal_parent, preal_parent;
 
 	struct list_head children;
 	struct list_head sibling;
@@ -117,6 +118,8 @@ struct task_struct {
 	uintptr_t	children_prev;
 	uintptr_t	sibling_next;
 	uintptr_t	sibling_prev;
+
+	uintptr_t	real_parent;
 };
 
 #define print_task_value(t, name) \
@@ -130,6 +133,7 @@ void dump_task_struct(struct task_struct *t)
 	print_task_value(t, children);
 	print_task_value(t, sibling);
 	print_task_value(t, comm);
+	print_task_value(t, real_parent);
 
 	printf("children_next %#lx %#lx\n",
 	       t->children_next, __phys_addr(t->children_next));
@@ -176,6 +180,8 @@ int fill_task_struct(struct nettlp *nt, uintptr_t vhead,
 	t->psibling = __phys_addr(t->vsibling);
 	t->vcomm = vhead + OFFSET_HEAD_COMM;
 	t->pcomm = __phys_addr(t->vcomm);
+	t->vreal_parent = vhead + OFFSET_HEAD_REAL_PARENT;
+	t->preal_parent = __phys_addr(t->vreal_parent);
 
 	ret = dma_read(nt, t->pchildren, &t->children, sizeof(t->children));
 	if (ret < sizeof(t->children))
@@ -183,6 +189,11 @@ int fill_task_struct(struct nettlp *nt, uintptr_t vhead,
 
 	ret = dma_read(nt, t->psibling, &t->sibling, sizeof(t->children));
 	if (ret < sizeof(t->sibling))
+		return -1;
+
+	ret = dma_read(nt, t->preal_parent, &t->real_parent,
+		       sizeof(t->real_parent));
+	if (ret < sizeof(t->real_parent))
 		return -1;
 
 	t->children_next = (uintptr_t)t->children.next;
@@ -202,11 +213,11 @@ int fill_task_struct(struct nettlp *nt, uintptr_t vhead,
 
 void print_task_struct_column(void)
 {
-	printf("PhyAddr        PID STAT        COMMAND\n");
+	printf("PhyAddr             PID STAT        COMMAND\n");
 }
 	
 
-void print_task_struct(struct nettlp *nt, struct task_struct t)
+int print_task_struct(struct nettlp *nt, struct task_struct t)
 {
 	int ret, pid;
 	long state;
@@ -215,30 +226,32 @@ void print_task_struct(struct nettlp *nt, struct task_struct t)
 	ret = dma_read(nt, t.ppid, &pid, sizeof(pid));
 	if (ret < sizeof(pid)) {
 		fprintf(stderr, "failed to read pid from %#lx\n", t.ppid);
-		return;
+		return -1;
 	}
 
 	ret = dma_read(nt, t.pcomm, &comm, sizeof(comm));
 	if (ret < sizeof(comm)) {
 		fprintf(stderr, "failed to read comm from %#lx\n", t.pcomm);
-		return;
+		return -1;
 	}
 
 	ret = dma_read(nt, t.pstate, &state, sizeof(state));
 	if (ret < sizeof(state)) {
 		fprintf(stderr, "failed to read state from %#lx\n", t.pstate);
-		return;
+		return -1;
 	}
 
 	comm[TASK_COMM_LEN - 1] = '\0';	/* preventing overflow */
 
-	printf("%#lx %6d    %c 0x%04lx %s\n",
+	printf("%#016lx %6d    %c 0x%04lx %s\n",
 	       t.phead, pid, state_to_char(state), state, comm);
+
+	return 0;
 }
 
 
 
-int task(struct nettlp *nt, uintptr_t vhead, uintptr_t children)
+int task(struct nettlp *nt, uintptr_t vhead, uintptr_t parent)
 {
 	/*
 	 * vhead is kernel virtual address of task_struct.
@@ -256,23 +269,26 @@ int task(struct nettlp *nt, uintptr_t vhead, uintptr_t children)
 	}
 	
 	/* print myself */
-	print_task_struct(nt, t);
+	ret = print_task_struct(nt, t);
+	if (ret < 0)
+		return ret;
 
 	if (t.children_next != t.vchildren) {
-		/* this task_struct has children. walk them  */
+		/* this task_struct has children. walk them */
 		ret = task(nt, t.children_next - OFFSET_HEAD_SIBLING,
-			   t.vchildren);
+			   t.vhead);
 		if (ret < 0)
 			return ret;
 	}
 	
-	if (children == t.sibling_next) {
+	if (t.sibling_next - OFFSET_HEAD_SIBLING == parent ||
+	    t.sibling_next - OFFSET_HEAD_CHILDREN == parent) {
 		/* walk done of the siblings spawned from the parent */
 		return 0;
 	}
 
 	/* goto the next sibling */
-	return task(nt, t.sibling_next - OFFSET_HEAD_SIBLING, children);
+	return task(nt, t.sibling_next - OFFSET_HEAD_SIBLING, parent);
 }
 
 void usage(void)
@@ -359,7 +375,7 @@ int main(int argc, char **argv)
 	fill_task_struct(&nt, addr, &t);
 
 	print_task_struct_column();
-	task(&nt, t.vhead, t.vchildren);
+	task(&nt, t.vhead, t.vhead);
 	//print_task_struct(&nt, t);
 	//dump_task_struct(&t);
 
