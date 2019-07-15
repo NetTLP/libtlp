@@ -255,7 +255,7 @@ int task(struct nettlp *nt, uintptr_t vhead, uintptr_t parent)
 {
 	/*
 	 * vhead is kernel virtual address of task_struct.
-	 * children is the vaddr of the parent's struct list_head children.
+	 * parent is the vaddr of the parent's task_struct.
 	 */
 
 	int ret;
