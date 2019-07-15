@@ -291,6 +291,32 @@ int task(struct nettlp *nt, uintptr_t vhead, uintptr_t parent)
 	return task(nt, t.sibling_next - OFFSET_HEAD_SIBLING, parent);
 }
 
+uintptr_t find_init_task_from_systemmap(char *map)
+{
+	FILE *fp;
+	char buf[4096];
+	uintptr_t addr = 0;
+
+	fp = fopen(map, "r");
+	if (!fp) {
+		perror("fopen");
+		return 0;
+	}
+
+	while(fgets(buf, sizeof(buf), fp) != NULL) {
+		if (strstr(buf, "D init_task")) {
+			char *p;
+			p = strchr(buf, ' ');
+			*p = '\0';
+			addr = strtoul(buf, NULL, 16);
+		}
+	}
+
+	fclose(fp);
+
+	return addr;
+}
+
 void usage(void)
 {
 	printf("usage\n"
@@ -300,7 +326,7 @@ void usage(void)
 	       "    -L local port (default 14198)\n"
 	       "    -b bus number, XX:XX\n"
 	       "    -t tag\n"
-	       "    -a virtual address of the first task_struct\n"
+	       "    -s path to System.map\n"
 	);
 }
 
@@ -312,6 +338,7 @@ int main(int argc, char **argv)
 	uintptr_t addr;
 	uint16_t busn, devn;
 	struct task_struct t;
+	char *map;
 
 	memset(&nt, 0, sizeof(nt));
 	nt.remote_port = 14198;
@@ -319,8 +346,9 @@ int main(int argc, char **argv)
 	addr = 0;
 	busn = 0;
 	devn = 0;
+	map = NULL;
 
-	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:s:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -355,8 +383,8 @@ int main(int argc, char **argv)
 			nt.tag = atoi(optarg);
 			break;
 
-		case 'a':
-			ret = sscanf(optarg, "0x%lx", &addr);
+		case 's':
+			map = optarg;
 			break;
 
 		default :
@@ -370,6 +398,12 @@ int main(int argc, char **argv)
 	if (ret < 0) {
 		perror("nettlp_init");
 		return ret;
+	}
+
+	addr = find_init_task_from_systemmap(map);
+	if (addr == 0) {
+		fprintf(stderr, "init_task not found on System.map %s\n", map);
+		return -1;
 	}
 
 	fill_task_struct(&nt, addr, &t);
