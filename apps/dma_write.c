@@ -19,6 +19,7 @@ void usage(void)
 	       "    -b bus number, XX:XX\n"
 	       "    -t tag\n"
 	       "    -a dma address, 0xHEXADDR\n"
+	       "    -s size\n"
 	       "    -p payload as ascii string (default )\n"
 		);
 }
@@ -29,7 +30,7 @@ int main(int argc, char **argv)
 	struct nettlp nt;
 	uintptr_t addr;
 	uint16_t busn, devn;
-	char *payload;
+	char buf[4096];
 
 	memset(&nt, 0, sizeof(nt));
 	nt.remote_port = 14198;
@@ -38,10 +39,9 @@ int main(int argc, char **argv)
 	busn = 0;
 	devn = 0;
 
-	payload = "hog";	/* 4-byte */
-	size = strlen(payload) + 1;
+	size = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:s:p:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -81,8 +81,15 @@ int main(int argc, char **argv)
 			break;
 
 		case 'p':
-			payload = optarg;
-			size = strlen(payload) + 1;	/* +1 for '\0' */
+			strncpy(buf, optarg, sizeof(buf));
+			break;
+
+		case 's':
+			size = atoi(optarg);
+			if (size > 4096) {
+				fprintf(stderr, "too large size\n");
+				return -1;
+			}
 			break;
 
 		default :
@@ -99,9 +106,9 @@ int main(int argc, char **argv)
 	dump_nettlp(&nt);
 
 	printf("start DMA write, to 0x%lx, payload='%s', size %d-byte\n",
-	       addr, payload, size);
+	       addr, buf, size);
 
-	ret = dma_write(&nt, addr, payload, size);
+	ret = dma_write(&nt, addr, buf, size);
 
 	printf("dma_write to 0x%lx returns %d\n", addr, ret);
 

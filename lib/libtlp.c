@@ -392,7 +392,7 @@ ssize_t dma_read(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 
 	/* build memory read request  */
 	tlp_set_type(mh.tlp.fmt_type, TLP_TYPE_MRd);
-	if (addr < INT32_MAX) {
+	if (addr < UINT32_MAX) {
 		tlp_set_fmt(mh.tlp.fmt_type, TLP_FMT_3DW, TLP_FMT_WO_DATA);
 		dst_addr32 = htobe32(addr & 0xFFFFFFFC);
 		iov[2].iov_base = &dst_addr32;
@@ -444,7 +444,7 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 
 	/* build memory write request */
 	tlp_set_type(mh.tlp.fmt_type, TLP_TYPE_MWr);
-	if (addr < INT32_MAX) {
+	if (addr < UINT32_MAX) {
 		tlp_set_fmt(mh.tlp.fmt_type, TLP_FMT_3DW, TLP_FMT_W_DATA);
 		dst_addr32 = htobe32(addr & 0xFFFFFFFC);
 		iov[2].iov_base = &dst_addr32;
