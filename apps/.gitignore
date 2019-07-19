@@ -3,5 +3,13 @@ dma_write
 pmem
 process-list
 pgd-walk
+codedump
 
 core
+
+a.out
+core
+phy
+phy.c
+System.map*
+*.dump
