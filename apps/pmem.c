@@ -1,3 +1,6 @@
+
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -9,14 +12,22 @@
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <arpa/inet.h>
+#include <signal.h>
+#include <pthread.h>
 
 
 #include <libtlp.h>
 
 #include "util.h"
 
-#define pr_info(fmt, ...) fprintf(stdout, "%s: " fmt, \
-                                  __func__, ##__VA_ARGS__)
+static int nostdout = 0;
+static int nohex = 0;
+
+#define pr_info(fmt, ...) do {						\
+		if (!nostdout) {					\
+			fprintf(stdout, "%s: " fmt, __func__, ##__VA_ARGS__); \
+		}							\
+	} while(0)
 
 #define pr_warn(fmt, ...) fprintf(stdout, "\x1b[1m\x1b[31m"     \
                                   "%s:WARN: " fmt "\x1b[0m",    \
@@ -28,7 +39,7 @@
 
 #define MAXPAYLOADSIZE	256
 
-static int nohex = 0;
+
 
 
 void build_pkt(void *buf, int len, unsigned int id)
@@ -92,6 +103,13 @@ struct pmem {
 	void *mem;
 };
 
+struct pmem_thread {
+	pthread_t tid;
+	struct nettlp nt;
+	struct pmem *pmem;
+	struct nettlp_cb *cb;
+};
+
 int send_cpl_abort(struct nettlp *nt, struct tlp_mr_hdr *mh)
 {
 	return 0;
@@ -119,7 +137,8 @@ int pmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
 	addr = tlp_mr_addr(mh);
 	data_len = tlp_mr_data_length(mh);	/* actuary transfer data len */
 
-	pr_info("MRd to 0x%lx, %lu byte\n", (addr >> 2) << 2, data_len);
+	pr_info("MRd to 0x%lx, tag 0x%02x %lu byte\n",
+		(addr >> 2) << 2, mh->tag, data_len);
 
 	if (addr < p->addr || addr + len > p->addr + p->size) {
 		pr_err("MRd request to 0x%lx, "
@@ -176,7 +195,7 @@ int pmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
 	
 	addr = tlp_mr_addr(mh);
 	
-	pr_info("MWr to 0x%lx, %lu byte\n", addr, count);
+	pr_info("MWr to 0x%lx, tag 0x%02x, %lu byte\n", addr, mh->tag, count);
 
 	if (addr < p->addr || addr + count > p->addr + p->size) {
 		pr_err("MWr request to 0x%lx, "
@@ -185,7 +204,7 @@ int pmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
 		return -1;
 	}
 
-	if (!nohex)
+	if (!nohex && !nostdout)
 		hexdump(m, count);
 
 	memcpy(p->mem + (addr - p->addr), m, count);
@@ -194,36 +213,71 @@ int pmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
 }
 
 
+int count_online_cpus(void)
+{
+	cpu_set_t cpu_set;
+
+	if (sched_getaffinity(0, sizeof(cpu_set_t), &cpu_set) == 0)
+		return CPU_COUNT(&cpu_set);
+
+	return -1;
+}
+
+void sig_handler(int sig)
+{
+	pr_info("stop callbacks\n");
+	nettlp_stop_cb();	/* stop all callbacks */
+}
+
+void *nettlp_cb_thread(void *arg)
+{
+	struct pmem_thread *pt = arg;
+	int cpu = pt->nt.tag % count_online_cpus();
+	cpu_set_t target_cpu_set;
+	
+	CPU_ZERO(&target_cpu_set);
+	CPU_SET(cpu, &target_cpu_set);
+	pthread_setaffinity_np(pt->tid, sizeof(cpu_set_t), &target_cpu_set);
+
+	pr_info("start callback on cpu %d, port %u\n", cpu, pt->nt.port);
+	nettlp_run_cb(&pt->nt, pt->cb, pt->pmem);
+
+	return NULL;
+}
+
 void usage(void)
 {
 	printf("usage\n"
 	       "    -r remote addr\n"
 	       "    -l local addr\n"
-	       "    -R remote port (default 14198)\n"
-	       "    -L local port (default 14198)\n"
 	       "    -b bus number, XX:XX\n"
 	       "    -a start addess (HEX)\n"
-	       "    -H no hexdump\n"
 	       "\n"
-	       "  initialize with packets option\n"
+	       "  initialize with packets options\n"
 	       "    -n nuber of packets\n"
 	       "    -s packet size\n"
+	       "\n"
+	       "  output options\n"
+	       "    -H no hexdump\n"
+	       "    -S no stdout\n"
 		);
 }
 
 int main(int argc, char **argv)
 {
-	int ret, ch;
+
+#define NTHREADS	16	/* adapter v0.15.1 uses tag & 0xF for ports */
+
+	int ret, ch, n;
 	struct pmem pmem;
-	struct nettlp nt;
+	struct nettlp nt;	/* the original nettlp */
 	struct nettlp_cb cb;
+	struct pmem_thread pth[NTHREADS];
 	uintptr_t addr;
 	uint16_t busn, devn;
 	int pktnum, pktlen;
 
 	memset(&nt, 0, sizeof(nt));
-	nt.remote_port = 14198;
-	nt.local_port = 14198;
 	addr = 0;
 	busn = 0;
 	devn = 0;
@@ -231,7 +285,7 @@ int main(int argc, char **argv)
 	pktnum = 0;
 	pktlen = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:R:L:b:t:a:Hn:s:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:b:a:HSn:s:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -249,21 +303,9 @@ int main(int argc, char **argv)
 			}
 			break;
 
-		case 'R':
-			nt.remote_port = atoi(optarg);
-			break;
-
-		case 'L':
-			nt.local_port = atoi(optarg);
-			break;
-
 		case 'b':
 			ret = sscanf(optarg, "%hx:%hx", &busn, &devn);
 			nt.requester = (busn << 8 | devn);
-			break;
-
-		case 't':
-			nt.tag = atoi(optarg);
 			break;
 
 		case 'a':
@@ -272,6 +314,10 @@ int main(int argc, char **argv)
 
 		case 'H':
 			nohex = 1;
+			break;
+
+		case 'S':
+			nostdout = 1;
 			break;
 
 		case 'n':
@@ -288,13 +334,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	ret = nettlp_init(&nt);
-	if (ret < 0) {
-		perror("nettlp_init");
-		return ret;
-	}
-	dump_nettlp(&nt);
-
+	/* initalize pmem area and callback */
 	pmem.addr = addr;
 	pmem.mem = malloc(1024 * 1024 * 256);	/* 256MB */
 	pmem.size = 1024 * 1024 * 256;
@@ -304,14 +344,53 @@ int main(int argc, char **argv)
 	cb.mwr = pmem_mwr;
 
 	if (pktnum > 0 && pktlen >= 60) {
-		printf("initalize the region with %d %d-byte packets\n",
-		       pktnum, pktlen);
+		if (pktlen > 2048) {
+			pr_err("too large packet size. must be <= 2048\n");
+			return -1;
+		}
+
+		pr_info("initalize the region with %d %d-byte packets\n",
+			pktnum, pktlen);
 		initialize_with_packets(pmem.mem, pktlen, pktnum);
 	}
 
-	printf("start pmem callback, start address is %#lx\n", addr);
+	pr_info("start pmem callbacks. start address is %#lx\n", addr);
 
-	nettlp_run_cb(&nt, &cb, &pmem);
+	/* initalize and start threads on each port 0x3000 + 0x0 ~ 0xF */
+	for (n = 0; n < NTHREADS; n++) {
+		pth[n].pmem = &pmem;
+		pth[n].cb = &cb;
+		pth[n].nt = nt;
+		pth[n].nt.tag = n;
+
+		ret = nettlp_init(&pth[n].nt);
+		if (ret < 0) {
+			pr_err("nettlp_init for tag %u failed", pth[n].nt.tag);
+			perror("nettlp_init");
+			return ret;
+		}
+
+		ret = pthread_create(&pth[n].tid, NULL, nettlp_cb_thread,
+				     &pth[n]);
+		if (ret < 0) {
+			pr_err("failed to create thread for cpu %u",
+			       pth[n].nt.tag);
+			perror("pthread_create");
+			return ret;
+		}
+
+		usleep(20);	/*XXX: to serialiez start output on threads */
+	}
+
+	/* set signal handler to stop callback threads */
+	if (signal(SIGINT, sig_handler) == SIG_ERR) {
+		perror("cannot set signal\n");
+		return -1;
+	}
+
+	/* thread join */
+	for (n = 0; n < NTHREADS; n++)
+		pthread_join(pth[n].tid, NULL);
 
 	return 0;
 }

@@ -8,6 +8,10 @@
 
 #include <tlp.h>
 
+
+#define NETTLP_PORT_BASE	12288	/* actual port number is
+					 * NETTLP_PORT_BASE + (tag & 0x0F) */
+
 /*
  * NetTLP specific header
  */
@@ -16,14 +20,13 @@ struct nettlp_hdr {
 	uint32_t	tstamp;
 } __attribute__((packed));
 
+
 /*
- * structure describing nettlp context for applications
+ * structure describing nettlp context
  */
 struct nettlp {
 
 	/* configuration */
-	int remote_port;
-	int local_port;
 	struct in_addr remote_addr;
 	struct in_addr local_addr;
 	uint16_t requester;
@@ -31,6 +34,7 @@ struct nettlp {
 
 	/* variable */
 	int sockfd;
+	uint16_t port;
 };
 
 
@@ -57,6 +61,13 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
 		  
 /*
  * Callback API for psuedo memory process
+ *
+ * @nt: struct nettlp that the callback is registered
+ * @mh: Memory Request TLP header
+ * @arg: argument passed throught nettlp_run_cb()
+ *
+ * @m: actual data of MWr or CplD
+ * @count: length of the data in @m
  */
 struct nettlp_cb {
 	int (*mrd)(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg);
@@ -68,6 +79,7 @@ struct nettlp_cb {
 };
 
 int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg);
+void nettlp_stop_cb(void);
 
 
 #endif /* _LIBTLP_H_ */

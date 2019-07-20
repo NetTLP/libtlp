@@ -216,6 +216,8 @@ int nettlp_init(struct nettlp *nt)
 	int fd, ret;
 	struct sockaddr_in saddr;
 
+	nt->port = NETTLP_PORT_BASE + (nt->tag & 0x0F);
+
 	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (fd < 0)
 		return fd;
@@ -224,7 +226,7 @@ int nettlp_init(struct nettlp *nt)
 	memset(&saddr, 0, sizeof(saddr));
 	saddr.sin_family = AF_INET;
 	saddr.sin_addr = nt->local_addr;
-	saddr.sin_port = htons(nt->local_port);
+	saddr.sin_port = htons(nt->port);
 	ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
 	if (ret < 0)
 		return ret;
@@ -233,7 +235,7 @@ int nettlp_init(struct nettlp *nt)
 	memset(&saddr, 0, sizeof(saddr));
 	saddr.sin_family = AF_INET;
 	saddr.sin_addr = nt->remote_addr;
-	saddr.sin_port = htons(nt->remote_port);
+	saddr.sin_port = htons(nt->port);
 	ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
 	if (ret < 0)
 		return ret;
@@ -503,6 +505,8 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
  * Callback API for pseudo memory process
  */
 
+static int stop_flag = 0;
+
 int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
 {
 	int ret = 0;
@@ -518,6 +522,9 @@ int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
 	x[0].events = POLLIN;
 
 	while (1) {
+
+		if (stop_flag)
+			break;
 
 		ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
 		if (ret < 0)
@@ -559,4 +566,9 @@ int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
 	}
 
 	return ret;
+}
+
+void nettlp_stop_cb(void)
+{
+	stop_flag = 1;
 }

@@ -1,7 +1,7 @@
 CC = gcc
 INCLUDE := -I../include 
 LDFLAGS := -L../lib 
-LDLIBS  := -ltlp
+LDLIBS  := -ltlp -lpthread
 CFLAGS  := -g -Wall $(INCLUDE)
 
 PROGNAME = dma_read dma_write pmem process-list pgd-walk codedump

@@ -8,8 +8,7 @@
 void dump_nettlp(struct nettlp *nt)
 {
 	printf("======== struct nettlp ========\n");
-	printf("remote_port: %d\n", nt->remote_port);
-	printf("local_port:  %d\n", nt->local_port);
+	printf("port:        %d\n", nt->port);
 	printf("remote_addr: %s\n", inet_ntoa(nt->remote_addr));
 	printf("local_addr:  %s\n", inet_ntoa(nt->local_addr));
 	printf("requester:   %02x:%02x\n",
