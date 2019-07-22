@@ -5,7 +5,7 @@ LDLIBS  := -ltlp -lpthread
 CFLAGS  := -g -Wall $(INCLUDE)
 
 PROGNAME = dma_read dma_write pmem process-list pgd-walk codedump \
-	   benchmark
+	   tlpperf
 
 all: $(PROGNAME)
 

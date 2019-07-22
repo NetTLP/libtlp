@@ -59,7 +59,8 @@ const char *pattern_str[] = { "seq", "fix", "random" };
 
 void usage(void)
 {
-	printf("usage\n"
+	printf("tlpperf usage\n"
+	       "\n"
 	       "  basic parameters\n"
 	       "    -r X.X.X.X  remote addr\n"
 	       "    -l X.X.X.X   local addr\n"
@@ -79,12 +80,13 @@ void usage(void)
 	       "  benchmark options\n"
 	       "    -c int   count of interations on each thread\n"
 	       "    -i msec  interval for each iteration\n"
+	       "    -t sec   duration\n"
 	       "\n"
 		);
 }
 
-/* structure describing benchmark */
-struct benchmark {
+/* structure describing tlpperf */
+struct tlpperf {
 	/* basic parameters*/
 	struct in_addr	remote, local;
 	uint16_t	requester;	/* requester number */
@@ -103,56 +105,63 @@ struct benchmark {
 	/* benchmark options */
 	int		count;		/* count of iterations for bench */
 	int		interval;	/* interval between iterations */
+	int		duration;	/* benchmark duration */
 };
 
-void print_benchmark(struct benchmark *b)
+static struct tlpperf *tlpperf;
+
+
+void print_tlpperf(struct tlpperf *t)
 {
-	printf("========= benchmark =========\n");
-	printf("-r remote:              %s\n", inet_ntoa(b->remote));
-	printf("-l local:               %s\n", inet_ntoa(b->local));
+	printf("============ tlpperf ============\n");
+	printf("-r remote:              %s\n", inet_ntoa(t->remote));
+	printf("-l local:               %s\n", inet_ntoa(t->local));
 	printf("-b requester:           %02x:%02x\n",
-	       (b->requester & 0xFF00) >> 8, b->requester & 0x00FF);
+	       (t->requester & 0xFF00) >> 8, t->requester & 0x00FF);
 
 	printf("\n");
-	printf("-d direction:           %s\n", direction_str[b->direction]);
-	printf("-a DMA region:          0x%#lx\n", b->region_addr);
-	printf("-s DMA region size:     %lu\n", b->region_size);
-	printf("-L DMA length           %lu\n", b->dma_len);
+	printf("-d direction:           %s\n", direction_str[t->direction]);
+	printf("-a DMA region:          0x%#lx\n", t->region_addr);
+	printf("-s DMA region size:     %lu\n", t->region_size);
+	printf("-L DMA length           %lu\n", t->dma_len);
 
 	printf("\n");
-	printf("-N nthreads:            %d\n", b->nthreads);
-	printf("-R how to split:        %s\n", split_str[b->split]);
-	printf("-P pattern:             %s\n", pattern_str[b->pattern]);
+	printf("-N nthreads:            %d\n", t->nthreads);
+	printf("-R how to split:        %s\n", split_str[t->split]);
+	printf("-P pattern:             %s\n", pattern_str[t->pattern]);
 
 	printf("\n");
-	printf("-c count:               %d\n", b->count);
-	printf("-i interval:            %d\n", b->interval);
+	printf("-c count:               %d\n", t->count);
+	printf("-i interval:            %d\n", t->interval);
+	printf("-t duration             %d\n", t->duration);
 
-	printf("=============================\n");
+	printf("=================================\n");
 }
 
-void benchmark(struct benchmark *b);
+void benchmark(struct tlpperf *t);
 
 int main(int argc, char **argv)
 {
 	int ch;
 	uint16_t busn, devn;
-	struct benchmark b;
+	struct tlpperf t;
+
+	tlpperf = &t;
 
 	/* initialize benchmark parameters with the default values */
-	memset(&b, 0, sizeof(b));
-	b.region_size = 1024 * 1024 * 256;	/* 256M */
-	b.dma_len = 256;
-	b.nthreads = 1;
+	memset(&t, 0, sizeof(t));
+	t.region_size = 1024 * 1024 * 256;	/* 256M */
+	t.dma_len = 256;
+	t.nthreads = 1;
 
-	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:c:i:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:c:i:t:")) != -1) {
 		switch (ch) {
 		case 'r':
-			if (inet_pton(AF_INET, optarg, &b.remote) < 1)
+			if (inet_pton(AF_INET, optarg, &t.remote) < 1)
 				return -1;
 			break;
 		case 'l':
-			if (inet_pton(AF_INET, optarg, &b.local) < 1)
+			if (inet_pton(AF_INET, optarg, &t.local) < 1)
 				return -1;
 			break;
 		case 'b':
@@ -160,51 +169,51 @@ int main(int argc, char **argv)
 				pr_err("invalid bus number '%s'\n", optarg);
 				return -1;
 			}
-			b.requester = ((busn << 8) | devn);
+			t.requester = ((busn << 8) | devn);
 			break;
 		case 'd':
 			if (strncmp("read", optarg, 4) == 0)
-				b.direction = DMA_DIRECTION_READ;
+				t.direction = DMA_DIRECTION_READ;
 			else if (strncmp("write", optarg, 5) == 0)
-				b.direction = DMA_DIRECTION_WRITE;
+				t.direction = DMA_DIRECTION_WRITE;
 			else {
 				pr_err("invalid direction '%s'\n", optarg);
 				return -1;
 			}
 			break;
 		case 'a':
-			b.region_addr = strtoul(optarg, NULL, 0);
+			t.region_addr = strtoul(optarg, NULL, 0);
 			if (errno == ERANGE) {
 				pr_err("invalid address '%s'\n", optarg);
 				return -1;
 			}
 			break;
 		case 's':
-			b.region_size = strtoul(optarg, NULL, 0);
+			t.region_size = strtoul(optarg, NULL, 0);
 			if (errno == ERANGE) {
 				pr_err("invalid size '%s'\n", optarg);
 				return -1;
 			}
 			break;
 		case 'L':
-			b.dma_len = strtoul(optarg, NULL, 0);
+			t.dma_len = strtoul(optarg, NULL, 0);
 			if (errno == ERANGE) {
 				pr_err("invalid len '%s'\n", optarg);
 				return -1;
 			}
 			break;
 		case 'N':
-			b.nthreads = atoi(optarg);
-			if (b.nthreads < 1 || b.nthreads > MAX_CPUS) {
+			t.nthreads = atoi(optarg);
+			if (t.nthreads < 1 || t.nthreads > MAX_CPUS) {
 				pr_err("invalid thread num '%s'\n", optarg);
 				return -1;
 			}
 			break;
 		case 'R':
 			if (strncmp("same", optarg, 4) == 0)
-				b.split = DMA_REGION_SPLIT_SAME;
+				t.split = DMA_REGION_SPLIT_SAME;
 			else if(strncmp("diff", optarg, 4) == 0)
-				b.split = DMA_REGION_SPLIT_DIFF;
+				t.split = DMA_REGION_SPLIT_DIFF;
 			else {
 				pr_err("invalid region split '%s'\n", optarg);
 				return -1;
@@ -212,25 +221,28 @@ int main(int argc, char **argv)
 			break;
 		case 'P':
 			if (strncmp("fix", optarg, 3) == 0)
-				b.pattern = DMA_PATTERN_FIX;
+				t.pattern = DMA_PATTERN_FIX;
 			else if (strncmp("seq", optarg, 3) == 0)
-				b.pattern = DMA_PATTERN_SEQ;
+				t.pattern = DMA_PATTERN_SEQ;
 			else if (strncmp("random", optarg, 5) == 0)
-				b.pattern = DMA_PATTERN_RANDOM;
+				t.pattern = DMA_PATTERN_RANDOM;
 			else {
 				pr_err("invalid pattern '%s'\n", optarg);
 				return -1;
 			}
 			break;
 		case 'c':
-			b.count = atoi(optarg);
+			t.count = atoi(optarg);
 			break;
 		case 'i':
-			b.interval = atoi(optarg);
-			if (b.interval < 0) {
+			t.interval = atoi(optarg);
+			if (t.interval < 0) {
 				pr_err("invalid interval '%s'\n", optarg);
 				return -1;
 			}
+			break;
+		case 't':
+			t.duration = atoi(optarg);
 			break;
 		default:
 			usage();
@@ -238,8 +250,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	print_benchmark(&b);
-	benchmark(&b);
+	print_tlpperf(&t);
+	benchmark(&t);
 
 	return 0;
 }
@@ -247,10 +259,10 @@ int main(int argc, char **argv)
 
 
 
-/* structure describing nettlp benchmark thread */
-struct nettlp_thread {
+/* structure describing tlpperf thread */
+struct tlpperf_thread {
 
-	struct benchmark *b;
+	struct tlpperf *t;
 
 	pthread_t tid;
 
@@ -270,9 +282,9 @@ struct nettlp_thread {
 
 
 static int caught_signal = 0;
-void sig_handler(int sig)
+void stop_all(int sig)
 {
-	pr_info("stop benchmark threads\n");
+	pr_info("stopping...\n");
 	caught_signal = 1;
 }
 
@@ -309,12 +321,9 @@ struct counter {
 	} while(0)
 
 
-
-
-
 void *count_thread(void *param)
 {
-	struct nettlp_thread *ths = param;
+	struct tlpperf_thread *ths = param;
 	cpu_set_t target_cpu_set;
 	struct counter ntrans[MAX_CPUS];
 	struct counter nbytes[MAX_CPUS];
@@ -345,6 +354,12 @@ void *count_thread(void *param)
 		printf("%4lu: %lu bps\n", count, nbytes_sum * 8);
 		printf("%4lu: %lu tps\n", count, ntrans_sum);
 		count++;
+
+		if (tlpperf->duration > 0) {
+			tlpperf->duration--;
+			if (tlpperf->duration == 0)
+				stop_all(0);
+		}
 	}
 
 	return NULL;
@@ -384,7 +399,7 @@ uintptr_t next_target_addr(uintptr_t current, uintptr_t start, uintptr_t end,
 
 void *benchmark_thread(void *param)
 {
-	struct nettlp_thread *th = param;
+	struct tlpperf_thread *th = param;
 	uintptr_t addr;
 	size_t dma_len, one_dma_len, len;
 	ssize_t ret;
@@ -398,9 +413,9 @@ void *benchmark_thread(void *param)
 	pthread_setaffinity_np(th->tid, sizeof(cpu_set_t), &target_cpu_set);
 
 	pr_info("start on cpu %d, address %#lx, size %lu, len %lu\n",
-		th->cpu, th->region_addr, th->region_size, th->b->dma_len);
+		th->cpu, th->region_addr, th->region_size, th->t->dma_len);
 
-	switch (th->b->direction) {
+	switch (th->t->direction) {
 	case DMA_DIRECTION_READ:
 		one_dma_len = MRRS;
 		dma = dma_read;
@@ -415,7 +430,7 @@ void *benchmark_thread(void *param)
 	}
 
 	addr = th->region_addr;
-	dma_len = th->b->dma_len;
+	dma_len = th->t->dma_len;
 
 	while (1) {
 
@@ -438,11 +453,11 @@ void *benchmark_thread(void *param)
 		dma_len -= ret;
 		addr = next_target_addr(addr, th->region_addr,
 					th->region_addr + th->region_size,
-					th->b->dma_len, th->b->pattern);
+					th->t->dma_len, th->t->pattern);
 
 		if (dma_len == 0) {
 			/* 1 transaction finished */
-			dma_len = th->b->dma_len;
+			dma_len = th->t->dma_len;
 		}
 
 	next:
@@ -452,18 +467,18 @@ void *benchmark_thread(void *param)
 				break;
 		}
 
-		if (th->b->interval)
-			usleep(th->b->interval * 1000);
+		if (th->t->interval)
+			usleep(th->t->interval * 1000);
 	}
 
 	return NULL;
 }
 
-void benchmark(struct benchmark *b)
+void benchmark(struct tlpperf *t)
 {
 	int n;
 	pthread_t ctid;	/* count_thread tid */
-	struct nettlp_thread ths[MAX_CPUS];
+	struct tlpperf_thread ths[MAX_CPUS];
 
 	if (pthread_create(&ctid, NULL, count_thread, ths) < 0) {
 		pr_err("failed to create count thread\n");
@@ -473,15 +488,15 @@ void benchmark(struct benchmark *b)
 
 	memset(ths, 0, sizeof(ths));
 
-	for (n = 0; n < b->nthreads; n++) {
-		struct nettlp_thread *th = &ths[n];
+	for (n = 0; n < t->nthreads; n++) {
+		struct tlpperf_thread *th = &ths[n];
 
-		th->b = b;
+		th->t = t;
 
 		/* initialize nettlp for this thread */
-		th->nt.remote_addr = b->remote;
-		th->nt.local_addr = b->local;
-		th->nt.requester = b->requester;
+		th->nt.remote_addr = t->remote;
+		th->nt.local_addr = t->local;
+		th->nt.requester = t->requester;
 		th->nt.tag = n;	/* XXX */
 		if (nettlp_init(&th->nt) < 0) {
 			perror("nettlp_init");
@@ -490,15 +505,15 @@ void benchmark(struct benchmark *b)
 
 		/* fill the thread-specific parameters */
 		th->cpu = n;	/* XXX */
-		th->count = b->count;
-		if (b->split == DMA_REGION_SPLIT_SAME) {
-			th->region_addr = b->region_addr;
-			th->region_size = b->region_size;
-		} else if (b->split == DMA_REGION_SPLIT_DIFF) {
-			th->region_addr = ((b->region_addr +
-					    b->region_size / b->nthreads * n)
+		th->count = t->count;
+		if (t->split == DMA_REGION_SPLIT_SAME) {
+			th->region_addr = t->region_addr;
+			th->region_size = t->region_size;
+		} else if (t->split == DMA_REGION_SPLIT_DIFF) {
+			th->region_addr = ((t->region_addr +
+					    t->region_size / t->nthreads * n)
 					   >> 12) << 12; /* 4k-byte align */
-			th->region_size = b->region_size / b->nthreads;
+			th->region_size = t->region_size / t->nthreads;
 		} else {
 			pr_err("invalid region split pattern\n");
 			return;
@@ -513,12 +528,12 @@ void benchmark(struct benchmark *b)
 		usleep(20);	/* to serialize start output on each thread */
 	}
 
-	if (signal(SIGINT, sig_handler) == SIG_ERR) {
+	if (signal(SIGINT, stop_all) == SIG_ERR) {
 		perror("cannot set seginal\n");
 		return;
 	}
 	
-	for (n = 0; n < b->nthreads; n++)
+	for (n = 0; n < t->nthreads; n++)
 		pthread_join(ths[n].tid, NULL);
 		
 	pthread_join(ctid, NULL);
