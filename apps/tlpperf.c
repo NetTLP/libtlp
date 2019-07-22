@@ -1,6 +1,7 @@
 
 #define _GNU_SOURCE
 
+#include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -8,6 +9,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/uio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <arpa/inet.h>
 #include <net/ethernet.h>
 #include <netinet/ip.h>
@@ -44,6 +49,65 @@ static int nostdout = 0;
 #define MRRS	512	/* Max Read Request Size */
 
 
+
+/* target mode */
+
+static uintptr_t phy_addr(void *virt) {
+	uintptr_t entry = 0;
+	long pagesize;
+	ssize_t rc;
+	off_t ret;
+	int fd;
+
+	fd = open("/proc/self/pagemap", O_RDONLY);
+	if (fd < 0)
+		err(1, "open /proc/self/pagemap: %s\n", strerror(errno));
+
+	pagesize = sysconf(_SC_PAGESIZE);
+
+	ret = lseek(fd, (uintptr_t)virt / pagesize * sizeof(uintptr_t),
+		    SEEK_SET);
+	if (ret < 0)
+		err(1, "lseek for /proc/self/pagemap: %s\n", strerror(errno));
+
+
+	rc = read(fd, &entry, sizeof(entry));
+	if (rc < 1 || entry == 0)
+		err(1, "read for /proc/self/pagemap: %s\n", strerror(errno));
+
+	close(fd);
+
+	return (entry & 0x7fffffffffffffULL) * pagesize +
+		   ((uintptr_t)virt) % pagesize;
+}
+
+
+void tlpperf_target_mode(size_t target_size)
+{
+	/* target mode allocates 'size'-byte hugepage and wait forever */
+	void *mem;
+	uintptr_t paddr;
+	size_t size = ((target_size >> 12) + 1) << 12;
+
+	mem = mmap(0, size, PROT_READ | PROT_WRITE,
+		   MAP_PRIVATE | MAP_ANONYMOUS | MAP_LOCKED | MAP_HUGETLB,
+		   -1, 0);
+	if (mem == MAP_FAILED) {
+		pr_err("failed to allocate %lu-byte from hugepage\n", size);
+		perror("mmap");
+		return;
+	}
+
+	paddr = phy_addr(mem);
+	printf("%lu-byte allocated, physical address is %#lx\n", size, paddr);
+
+	while (1)
+		sleep(1);
+}
+
+
+/* benchmark mode */
+
 #define DMA_DIRECTION_READ	0
 #define DMA_DIRECTION_WRITE	1
 const char *direction_str[] = { "read", "write" };
@@ -66,7 +130,7 @@ void usage(void)
 	       "    -l X.X.X.X   local addr\n"
 	       "    -b XX:XX    bus number of requester\n"
 	       "\n"
-	       "  benchmark DMA parameters\n"
+	       "  DMA parameters\n"
 	       "    -d read|write  DMA direction\n"
 	       "    -a 0xADDR      DMA target region address (physical)\n"
 	       "    -s u_int       DMA target region size\n"
@@ -77,11 +141,13 @@ void usage(void)
 	       "    -R same|diff       how to split DMA region for threads\n"
 	       "    -P fix|seq|random  access pattern on each reagion\n"
 	       "\n"
-	       "  benchmark options\n"
+	       "  options\n"
 	       "    -c int   count of interations on each thread\n"
 	       "    -i msec  interval for each iteration\n"
 	       "    -t sec   duration\n"
 	       "\n"
+	       "  for target host\n"
+	       "    -S size  size to allocate hugepage as tlpperf target\n"
 		);
 }
 
@@ -144,6 +210,7 @@ int main(int argc, char **argv)
 {
 	int ch;
 	uint16_t busn, devn;
+	size_t target_size = 0;
 	struct tlpperf t;
 
 	tlpperf = &t;
@@ -154,7 +221,8 @@ int main(int argc, char **argv)
 	t.dma_len = 256;
 	t.nthreads = 1;
 
-	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:c:i:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:c:i:t:S:"))
+	       != -1) {
 		switch (ch) {
 		case 'r':
 			if (inet_pton(AF_INET, optarg, &t.remote) < 1)
@@ -244,6 +312,11 @@ int main(int argc, char **argv)
 		case 't':
 			t.duration = atoi(optarg);
 			break;
+
+		case 'S':
+			target_size = strtoul(optarg, NULL, 0);
+			tlpperf_target_mode(target_size);
+			return 0;
 		default:
 			usage();
 			return -1;
