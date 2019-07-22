@@ -4,6 +4,7 @@ pmem
 process-list
 pgd-walk
 codedump
+benchmark
 
 core
 
