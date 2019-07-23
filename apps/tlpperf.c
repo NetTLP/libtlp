@@ -39,6 +39,7 @@
 #include "util.h"
 
 static int nostdout = 0;
+static int debug = 0;
 
 #define pr_info(fmt, ...) do {						\
 		if (!nostdout) {					\
@@ -52,6 +53,13 @@ static int nostdout = 0;
 
 #define pr_err(fmt, ...) fprintf(stderr, "%s:ERR: " fmt,	\
 				 __func__, ##__VA_ARGS__)
+
+#define pr_debug(fmt, ...) do {						\
+		if (debug) {						\
+			fprintf(stdout, "%s:DEBUG: " fmt,		\
+				__func__, ##__VA_ARGS__);		\
+		}							\
+	} while(0)
 
 
 #define MAX_CPUS	16	/* due to NetTLP adapter v0.15.1 */
@@ -156,6 +164,7 @@ void usage(void)
 	       "    -c int   count of interations on each thread\n"
 	       "    -i msec  interval for each iteration\n"
 	       "    -t sec   duration\n"
+	       "    -D       debug mode\n"
 	       "\n"
 	       "  for target host\n"
 	       "    -S size  size to allocate hugepage as tlpperf target\n"
@@ -232,7 +241,7 @@ int main(int argc, char **argv)
 	t.dma_len = 256;
 	t.nthreads = 1;
 
-	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:c:i:t:S:"))
+	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:c:i:t:DS:"))
 	       != -1) {
 		switch (ch) {
 		case 'r':
@@ -322,6 +331,9 @@ int main(int argc, char **argv)
 			break;
 		case 't':
 			t.duration = atoi(optarg);
+			break;
+		case 'D':
+			debug = 1;
 			break;
 
 		case 'S':
@@ -525,6 +537,8 @@ void *benchmark_thread(void *param)
 
 		if (caught_signal)
 			break;
+
+		pr_debug("DMA to %#lx, cpu %d\n", addr, th->cpu);
 
 		len = dma_len < one_dma_len ? dma_len : one_dma_len;
 		ret = dma(&th->nt, addr, buf, len);
