@@ -127,7 +127,7 @@ void usage(void)
 	       "\n"
 	       "  basic parameters\n"
 	       "    -r X.X.X.X  remote addr\n"
-	       "    -l X.X.X.X   local addr\n"
+	       "    -l X.X.X.X  local addr\n"
 	       "    -b XX:XX    bus number of requester\n"
 	       "\n"
 	       "  DMA parameters\n"
@@ -217,7 +217,7 @@ int main(int argc, char **argv)
 
 	/* initialize benchmark parameters with the default values */
 	memset(&t, 0, sizeof(t));
-	t.region_size = 1024 * 1024 * 256;	/* 256M */
+	t.region_size = 1024 * 1024 * 8;	/* 8M */
 	t.dma_len = 256;
 	t.nthreads = 1;
 
