@@ -207,7 +207,7 @@ void print_tlpperf(struct tlpperf *t)
 
 	printf("\n");
 	printf("-d direction:           %s\n", direction_str[t->direction]);
-	printf("-a DMA region:          0x%#lx\n", t->region_addr);
+	printf("-a DMA region:          %#lx\n", t->region_addr);
 	printf("-s DMA region size:     %lu\n", t->region_size);
 	printf("-L DMA length           %lu\n", t->dma_len);
 
