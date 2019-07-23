@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/uio.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -159,6 +160,7 @@ void usage(void)
 	       "    -N u_int           number of thread\n"
 	       "    -R same|diff       how to split DMA region for threads\n"
 	       "    -P fix|seq|random  access pattern on each reagion\n"
+	       "    -M                 measuring latency mode\n"
 	       "\n"
 	       "  options\n"
 	       "    -c int   count of interations on each thread\n"
@@ -183,10 +185,11 @@ struct tlpperf {
 	size_t		region_size;	/* DMA target region size */
 	size_t		dma_len;	/* DMA length */
 
-	/* bencharmk parameters */
+	/* bencharmk style parameters */
 	int		nthreads;	/* number of threads */
 	int		split;		/* region split */
 	int		pattern;	/* access pattern*/
+	int		latency_mode;	/* latency measurement mode */
 
 	/* benchmark options */
 	int		count;		/* count of iterations for bench */
@@ -215,11 +218,13 @@ void print_tlpperf(struct tlpperf *t)
 	printf("-N nthreads:            %d\n", t->nthreads);
 	printf("-R how to split:        %s\n", split_str[t->split]);
 	printf("-P pattern:             %s\n", pattern_str[t->pattern]);
+	printf("-M latency mode:        %s\n", t->latency_mode ? "on" : "off");
 
 	printf("\n");
 	printf("-c count:               %d\n", t->count);
 	printf("-i interval:            %d\n", t->interval);
 	printf("-t duration             %d\n", t->duration);
+	printf("-D debug:               %s\n", debug ? "on" : "off");
 
 	printf("=================================\n");
 }
@@ -241,7 +246,7 @@ int main(int argc, char **argv)
 	t.dma_len = 256;
 	t.nthreads = 1;
 
-	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:c:i:t:DS:"))
+	while ((ch = getopt(argc, argv, "r:l:b:d:a:s:L:N:R:P:Mc:i:t:DS:"))
 	       != -1) {
 		switch (ch) {
 		case 'r':
@@ -318,6 +323,9 @@ int main(int argc, char **argv)
 				pr_err("invalid pattern '%s'\n", optarg);
 				return -1;
 			}
+			break;
+		case 'M':
+			t.latency_mode = 1;
 			break;
 		case 'c':
 			t.count = atoi(optarg);
@@ -497,6 +505,19 @@ uintptr_t next_target_addr(uintptr_t current, uintptr_t start, uintptr_t end,
 	return 0;
 }
 
+unsigned long get_usec_elapsed(struct timeval start, struct timeval end)
+{
+	 unsigned long usec;
+	 if (end.tv_usec < start.tv_usec) {
+		  end.tv_usec += 1000000;
+		  end.tv_sec -= 1;
+	 }
+
+	 usec = (end.tv_sec - start.tv_sec) * 1000000 +
+		 end.tv_usec - start.tv_usec;
+	 return usec;
+}
+
 
 void *benchmark_thread(void *param)
 {
@@ -508,6 +529,7 @@ void *benchmark_thread(void *param)
 	cpu_set_t target_cpu_set;
 	ssize_t (*dma)(struct nettlp *nt, uintptr_t addr,
 		       void *buf, size_t count);
+	struct timeval start, end;	/* for latency mode */
 
 	CPU_ZERO(&target_cpu_set);
 	CPU_SET(th->cpu, &target_cpu_set);
@@ -541,7 +563,15 @@ void *benchmark_thread(void *param)
 		pr_debug("DMA to %#lx, cpu %d\n", addr, th->cpu);
 
 		len = dma_len < one_dma_len ? dma_len : one_dma_len;
+
+		if (tlpperf->latency_mode)
+			gettimeofday(&start, NULL);
+
 		ret = dma(&th->nt, addr, buf, len);
+
+		if (tlpperf->latency_mode)
+			gettimeofday(&end, NULL);
+
 		if (ret < 0) {
 			fprintf(stderr,
 				"dma error on cpu %d. "
@@ -549,6 +579,11 @@ void *benchmark_thread(void *param)
 				th->cpu, addr, len, strerror(errno));
 			return NULL;
 			goto next;
+		}
+
+		if (tlpperf->latency_mode) {
+			printf("latency: cpu on %d, %lu usec\n",
+			       th->cpu, get_usec_elapsed(start, end));
 		}
 
 		th->ntrans++;
