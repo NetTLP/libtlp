@@ -21,6 +21,17 @@
 #include <signal.h>
 #include <pthread.h>
 
+#ifdef __APPLE__
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <mach/thread_act.h>
+#include <mach/thread_policy.h>
+#include "thread_affinity_apple.h"
+
+/* use superpage instead of hugepage */
+#define MAP_LOCKED	0
+#define MAP_HUGETLB	VM_FLAGS_SUPERPAGE_SIZE_2MB
+#endif
 
 #include <libtlp.h>
 
@@ -424,8 +435,13 @@ void *count_thread(void *param)
 		gather_diff_sum(ntrans, ntrans, ntrans_sum);
 		gather_diff_sum(nbytes, nbytes, nbytes_sum);
 
+#ifdef __APPLE__
+		printf("%4llu: %llu bps\n", count, nbytes_sum * 8);
+		printf("%4llu: %llu tps\n", count, ntrans_sum);
+#else
 		printf("%4lu: %lu bps\n", count, nbytes_sum * 8);
 		printf("%4lu: %lu tps\n", count, ntrans_sum);
+#endif
 		count++;
 
 		if (tlpperf->duration > 0) {

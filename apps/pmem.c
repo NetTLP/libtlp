@@ -20,6 +20,14 @@
 
 #include "util.h"
 
+#ifdef __APPLE__
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <mach/thread_act.h>
+#include <mach/thread_policy.h>
+#include "thread_affinity_apple.h"
+#endif
+
 static int nostdout = 0;
 static int nohex = 0;
 

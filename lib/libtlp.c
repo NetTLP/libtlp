@@ -280,7 +280,7 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 		if (ret == 0)
 			goto out;
 
-		if (!x[0].revents & POLLIN)
+		if (!(x[0].revents & POLLIN))
 			goto err_out;
 
 		iov[2].iov_base = buf + received;
@@ -530,7 +530,7 @@ int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
 		if (ret < 0)
 			break;
 
-		if (ret == 0 || !x[0].revents & POLLIN)
+		if (ret == 0 || !(x[0].revents & POLLIN))
 			continue;
 
 		ret = read(nt->sockfd, buf, sizeof(buf));

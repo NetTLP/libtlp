@@ -4,8 +4,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <linux/const.h>
 #include <fcntl.h>
+
+#ifdef __APPLE__
+#define _AC(X,Y)        X
+#else
+#include <linux/const.h>
+#endif
+
 
 #include <libtlp.h>
 
