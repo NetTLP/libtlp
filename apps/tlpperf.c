@@ -137,9 +137,10 @@ const char *direction_str[] = { "read", "write" };
 const char *split_str[] = { "same", "diff" };
 
 #define DMA_PATTERN_SEQ		0
-#define DMA_PATTERN_FIX		1
-#define DMA_PATTERN_RANDOM	2
-const char *pattern_str[] = { "seq", "fix", "random" };
+#define DMA_PATTERN_SEQ512	1
+#define DMA_PATTERN_FIX		2
+#define DMA_PATTERN_RANDOM	3
+const char *pattern_str[] = { "seq", "seq512", "fix", "random" };
 
 void usage(void)
 {
@@ -157,10 +158,10 @@ void usage(void)
 	       "    -L u_int       DMA length (spilited into MPS and MRRS)\n"
 	       "\n"
 	       "  benchmark style parameters\n"
-	       "    -N u_int           number of thread\n"
-	       "    -R same|diff       how to split DMA region for threads\n"
-	       "    -P fix|seq|random  access pattern on each reagion\n"
-	       "    -M                 measuring latency mode\n"
+	       "    -N u_int                  number of thread\n"
+	       "    -R same|diff              how to split DMA region for threads\n"
+	       "    -P fix|seq|seq512|random  access pattern on each reagion\n"
+	       "    -M                        measuring latency mode\n"
 	       "\n"
 	       "  options\n"
 	       "    -c int   count of interations on each thread\n"
@@ -315,6 +316,8 @@ int main(int argc, char **argv)
 		case 'P':
 			if (strncmp("fix", optarg, 3) == 0)
 				t.pattern = DMA_PATTERN_FIX;
+			else if (strncmp("seq512", optarg, 6) == 0)
+				t.pattern = DMA_PATTERN_SEQ512;
 			else if (strncmp("seq", optarg, 3) == 0)
 				t.pattern = DMA_PATTERN_SEQ;
 			else if (strncmp("random", optarg, 5) == 0)
@@ -489,6 +492,9 @@ uintptr_t next_target_addr(uintptr_t current, uintptr_t start, uintptr_t end,
 
 	case DMA_PATTERN_SEQ:
 		return (current + len > end) ? start : current + len;
+
+	case DMA_PATTERN_SEQ512:
+		return (current + 512 > end) ? start : current + 512;
 
 	case DMA_PATTERN_FIX:
 		return current;
