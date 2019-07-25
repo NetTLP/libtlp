@@ -66,7 +66,7 @@ static int debug = 0;
 #define MAX_CPUS	16	/* due to NetTLP adapter v0.15.1 */
 
 #define MPS	256	/* Max Payload Size */
-#define MRRS	512	/* Max Read Request Size */
+#define MRRS	2048	/* Max Read Request Size */
 
 
 
