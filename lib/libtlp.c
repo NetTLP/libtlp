@@ -501,6 +501,62 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 }
 
 
+ssize_t
+dma_read_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
+		 size_t count, size_t mrrs)
+{
+	uintptr_t dma_addr;
+	size_t len, done;
+	ssize_t ret, dma_len;
+
+	done = 0;
+	dma_addr = addr;
+	dma_len = count;
+
+	do {
+		len = dma_len < mrrs ? dma_len : mrrs;
+		ret = dma_read(nt, dma_addr, buf + done, len);
+		if (ret < 0)
+			return ret;
+
+		/* for next iteration */
+		done += ret;
+		dma_addr += ret;
+		dma_len -= ret;
+
+	} while (dma_len > 0);
+
+	return ret;
+}
+
+ssize_t
+dma_write_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
+		  size_t count, size_t mps)
+{
+	uintptr_t dma_addr;
+	size_t len, done;
+	ssize_t ret, dma_len;
+
+	done = 0;
+	dma_addr = addr;
+	dma_len = count;
+
+	do {
+		len = dma_len < mps ? dma_len : mps;
+		ret = dma_write(nt, dma_addr, buf + done, len);
+		if (ret < 0)
+			return ret;
+
+		/* for next iteration */
+		done += ret;
+		dma_addr += ret;
+		dma_len -= ret;
+
+	} while (dma_len > 0);
+
+	return ret;
+}
+
 /*
  * Callback API for pseudo memory process
  */

@@ -18,12 +18,13 @@ void usage(void)
 	       "    -t tag\n"
 	       "    -a target address\n"
 	       "    -s transfer size (default 4-byte)\n"
+	       "    -m MaxReadRequestSize"
 		);
 }
 
 int main(int argc, char **argv)
 {
-	int ret, ch, size;
+	int ret, ch, size, mrrs;
 	struct nettlp nt;
 	uintptr_t addr;
 	uint16_t busn, devn;
@@ -34,8 +35,9 @@ int main(int argc, char **argv)
 	addr = 0;
 	busn = 0;
 	devn = 0;
+	mrrs = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:b:t:a:s:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:b:t:a:s:m:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -68,10 +70,13 @@ int main(int argc, char **argv)
 
 		case 's':
 			size = atoi(optarg);
-			if (size < 1 || size > 4096) {
-				fprintf(stderr, "size must be 0 > | < 4096\n");
+			if (size < 1) {
+				fprintf(stderr, "size must be > 0\n");
 				return -1;
 			}
+			break;
+		case 'm':
+			mrrs = atoi(optarg);
 			break;
 
 		default :
@@ -90,7 +95,12 @@ int main(int argc, char **argv)
 	memset(buf, 0, sizeof(buf));
 
 
-	ret = dma_read(&nt, addr, buf, size);
+
+	if (mrrs)
+		ret = dma_read_aligned(&nt, addr, buf, size, mrrs);
+	else
+		ret = dma_read(&nt, addr, buf, size);
+
 	printf("dma_read to 0x%lx returns %d\n", addr, ret);
 
 	if (ret < 0)

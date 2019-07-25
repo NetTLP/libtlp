@@ -58,6 +58,18 @@ int nettlp_init(struct nettlp *nt);
 ssize_t dma_read(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
 ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
 		  
+/*
+ * dma_(read|write)_aligned()
+ *
+ * These variants aligns large memory request into @mrrs
+ * (MaxReadReqestSize) or @mps (MaxPayloadSize)
+ *
+ */
+ssize_t dma_read_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
+			 size_t count, size_t mrrs);
+ssize_t dma_write_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
+			  size_t count, size_t mps);
+
 		  
 /*
  * Callback API for psuedo memory process

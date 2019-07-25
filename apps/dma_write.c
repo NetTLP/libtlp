@@ -19,12 +19,13 @@ void usage(void)
 	       "    -a dma address, 0xHEXADDR\n"
 	       "    -s size\n"
 	       "    -p payload as ascii string (default )\n"
+	       "    -m MaxPayloadSize\n"
 		);
 }
 
 int main(int argc, char **argv)
 {
-	int ret, ch, size;
+	int ret, ch, size, mps;
 	struct nettlp nt;
 	uintptr_t addr;
 	uint16_t busn, devn;
@@ -34,10 +35,11 @@ int main(int argc, char **argv)
 	addr = 0;
 	busn = 0;
 	devn = 0;
+	mps = 0;
 
 	size = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:b:t:a:s:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:b:t:a:s:p:m:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -80,6 +82,10 @@ int main(int argc, char **argv)
 			}
 			break;
 
+		case 'm':
+			mps = atoi(optarg);
+			break;
+
 		default :
 			usage();
 			return -1;
@@ -96,7 +102,10 @@ int main(int argc, char **argv)
 	printf("start DMA write, to 0x%lx, payload='%s', size %d-byte\n",
 	       addr, buf, size);
 
-	ret = dma_write(&nt, addr, buf, size);
+	if (mps)
+		ret = dma_write_aligned(&nt, addr, buf, size, mps);
+	else
+		ret = dma_write(&nt, addr, buf, size);
 
 	printf("dma_write to 0x%lx returns %d\n", addr, ret);
 
