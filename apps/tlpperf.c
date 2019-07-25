@@ -531,7 +531,7 @@ void *benchmark_thread(void *param)
 	uintptr_t addr;
 	size_t dma_len, one_dma_len, len;
 	ssize_t ret;
-	char buf[MPS * 2];	/* x2 is just a buffer */
+	char buf[MRRS * 2];	/* x2 is just a buffer */
 	cpu_set_t target_cpu_set;
 	ssize_t (*dma)(struct nettlp *nt, uintptr_t addr,
 		       void *buf, size_t count);
