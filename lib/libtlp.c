@@ -453,7 +453,7 @@ ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 		iov[2].iov_len = sizeof(dst_addr32);
 	} else {
 		tlp_set_fmt(mh.tlp.fmt_type, TLP_FMT_4DW, TLP_FMT_W_DATA);
-		dst_addr64 = htobe64(addr & 0xFFFFFFFFFFFFFFF7);
+		dst_addr64 = htobe64(addr & 0xFFFFFFFFFFFFFFFC);
 		iov[2].iov_base = &dst_addr64;
 		iov[2].iov_len = sizeof(dst_addr64);
 	}
