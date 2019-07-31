@@ -563,61 +563,72 @@ dma_write_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
 
 static int stop_flag = 0;
 
-int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg)
+int nettlp_run_cb(struct nettlp **nt, int nnts,
+		  struct nettlp_cb *cb, void *arg)
 {
-	int ret = 0;
+	int ret = 0, n;
 	ssize_t received;
-	struct pollfd x[1];
+	struct pollfd x[NETTLP_CB_MAX_NTS];
 	char buf[4096];
 	struct nettlp_hdr *nh;
 	struct tlp_hdr *th;
 	struct tlp_mr_hdr *mh;
 	struct tlp_cpl_hdr *ch;
 
-	x[0].fd = nt->sockfd;
-	x[0].events = POLLIN;
+	if (nnts > NETTLP_CB_MAX_NTS) {
+		errno = -EINVAL;
+		return -1;
+	}
+
+	for (n = 0; n < nnts; n++) {
+		x[n].fd = nt[n]->sockfd;
+		x[n].events = POLLIN;
+	}
 
 	while (1) {
 
 		if (stop_flag)
 			break;
 
-		ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
+		ret = poll(x, nnts, LIBTLP_CPL_TIMEOUT);
 		if (ret < 0)
 			break;
 
-		if (ret == 0 || !(x[0].revents & POLLIN))
-			continue;
+		if (ret == 0)
+			continue;	/* timeout */
 
-		ret = read(nt->sockfd, buf, sizeof(buf));
-		if (ret < 0)
-			break;
+		for (n = 0; n < nnts; n++) {
 
-		nh = (struct nettlp_hdr *)buf; /* currently, nothing to do */
-		th = (struct tlp_hdr *)(nh + 1);
-		mh = (struct tlp_mr_hdr *)th;
-		ch = (struct tlp_cpl_hdr *)th;
+			if (!(x[0].revents & POLLIN))
+				continue;
 
-		if (tlp_is_mrd(th->fmt_type) && cb->mrd) {
+			ret = read(nt[n]->sockfd, buf, sizeof(buf));
+			if (ret < 0)
+				break;
 
-			cb->mrd(nt, mh, arg);
+			nh = (struct nettlp_hdr *)buf;
+			th = (struct tlp_hdr *)(nh + 1);
+			mh = (struct tlp_mr_hdr *)th;
+			ch = (struct tlp_cpl_hdr *)th;
 
-		} else if (tlp_is_mwr(th->fmt_type) && cb->mwr) {
+			if (tlp_is_mrd(th->fmt_type) && cb->mrd) {
+				cb->mrd(nt[n], mh, arg);
+			} else if (tlp_is_mwr(th->fmt_type) && cb->mwr) {
 
-			cb->mwr(nt, mh, tlp_mwr_data(mh),
-				tlp_mr_data_length(mh),
-				arg);
+				cb->mwr(nt[n], mh, tlp_mwr_data(mh),
+					tlp_mr_data_length(mh), arg);
 
-		} else if (tlp_is_cpl(th->fmt_type) &&
-			   tlp_is_wo_data(th->fmt_type) && cb->cpl) {
+			} else if (tlp_is_cpl(th->fmt_type) &&
+				   tlp_is_wo_data(th->fmt_type) && cb->cpl) {
 
-			cb->cpl(nt, ch, arg);
+				cb->cpl(nt[n], ch, arg);
 
-		} else if (tlp_is_cpl(th->fmt_type) &&
-			   tlp_is_w_data(th->fmt_type) && cb->cpld) {
+			} else if (tlp_is_cpl(th->fmt_type) &&
+				   tlp_is_w_data(th->fmt_type) && cb->cpld) {
 
-			cb->cpld(nt, ch, tlp_cpld_data(ch),
-				 tlp_cpld_data_length(ch), arg);
+				cb->cpld(nt[n], ch, tlp_cpld_data(ch),
+					 tlp_cpld_data_length(ch), arg);
+			}
 		}
 	}
 

@@ -75,12 +75,15 @@ ssize_t dma_write_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
 /*
  * Callback API for psuedo memory process
  *
- * @nt: struct nettlp that the callback is registered
+ * @nt: array of struct nettlp that the callback is registered
+ * @nnts: number of struct nettlp
  * @mh: Memory Request TLP header
  * @arg: argument passed throught nettlp_run_cb()
  *
  * @m: actual data of MWr or CplD
  * @count: length of the data in @m
+ *
+ * multiple struct nettlp contexts are handled by a single thread with poll
  */
 struct nettlp_cb {
 	int (*mrd)(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg);
@@ -91,9 +94,11 @@ struct nettlp_cb {
 		    void *m, size_t count, void *arg);
 };
 
-int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg);
-void nettlp_stop_cb(void);
+#define NETTLP_CB_MAX_NTS	16
 
+int nettlp_run_cb(struct nettlp **nt, int nnts,
+		  struct nettlp_cb *cb, void *arg);
+void nettlp_stop_cb(void);
 
 /*
  * Messaging API for NetTLP driver.

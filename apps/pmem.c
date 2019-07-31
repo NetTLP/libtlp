@@ -242,13 +242,14 @@ void *nettlp_cb_thread(void *arg)
 	struct pmem_thread *pt = arg;
 	int cpu = pt->nt.tag % count_online_cpus();
 	cpu_set_t target_cpu_set;
+	struct nettlp *nt = &pt->nt;
 	
 	CPU_ZERO(&target_cpu_set);
 	CPU_SET(cpu, &target_cpu_set);
 	pthread_setaffinity_np(pt->tid, sizeof(cpu_set_t), &target_cpu_set);
 
 	pr_info("start callback on cpu %d, port %u\n", cpu, pt->nt.port);
-	nettlp_run_cb(&pt->nt, pt->cb, pt->pmem);
+	nettlp_run_cb(&(nt), 1, pt->cb, pt->pmem);
 
 	return NULL;
 }
