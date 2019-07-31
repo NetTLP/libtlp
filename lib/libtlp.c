@@ -628,3 +628,96 @@ void nettlp_stop_cb(void)
 {
 	stop_flag = 1;
 }
+
+
+/*
+ * Messaging API for NetTLP driver.
+ */
+
+static int nettlp_msg_socket(struct in_addr addr)
+{
+	int fd, ret;
+	struct sockaddr_in saddr;
+
+	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (fd < 0)
+		return fd;
+
+	memset(&saddr, 0, sizeof(saddr));
+	saddr.sin_family = AF_INET;
+	saddr.sin_addr = addr;
+	saddr.sin_port = htons(NETTLP_MSG_PORT);
+	ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
+	if (ret < 0)
+		return ret;
+
+	return fd;
+}
+
+uintptr_t nettlp_msg_get_bar4_start(struct in_addr addr)
+{
+	int sock, req, ret = 0;
+	uintptr_t bar4_addr = 0;
+	struct pollfd x[1];
+
+	sock = nettlp_msg_socket(addr);
+	if (sock < 1)
+		return 0;
+
+	/* send GET_BAR4 request */
+	req = NETTLP_MSG_GET_BAR4_ADDR;
+	ret = write(sock, &req, sizeof(req));
+
+	/* recv response with timeout */
+	x[0].fd = sock;
+	x[0].events = POLLIN;
+
+	ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
+	if (ret <= 0)
+		goto err_out;
+
+	ret = read(sock, &bar4_addr, sizeof(bar4_addr));
+	if (ret < 0)
+		goto err_out;
+
+	close(sock);
+	return bar4_addr;
+
+err_out:
+	close(sock);
+	return 0;
+}
+
+int nettlp_msg_get_msix_table(struct in_addr addr, struct nettlp_msix *msix,
+			      int msix_count)
+{
+	int sock, req, ret = 0;
+	struct pollfd x[1];
+
+	sock = nettlp_msg_socket(addr);
+	if (sock < 1)
+		return 0;
+
+	/* send GET_BAR4 request */
+	req = NETTLP_MSG_GET_MSIX_TABLE;
+	ret = write(sock, &req, sizeof(req));
+
+	/* recv response with timeout */
+	x[0].fd = sock;
+	x[0].events = POLLIN;
+
+	ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
+	if (ret <= 0)
+		goto err_out;
+
+	ret = read(sock, msix, sizeof(struct nettlp_msix) * msix_count);
+	if (ret < 0)
+		goto err_out;
+
+	close(sock);
+	return 0;
+
+err_out:
+	close(sock);
+	return -1;
+}

@@ -11,6 +11,7 @@
 
 #define NETTLP_PORT_BASE	12288	/* actual port number is
 					 * NETTLP_PORT_BASE + (tag & 0x0F) */
+#define NETTLP_MSG_PORT		12287	/* Port for messaging API */
 
 /*
  * NetTLP specific header
@@ -92,6 +93,50 @@ struct nettlp_cb {
 
 int nettlp_run_cb(struct nettlp *nt, struct nettlp_cb *cb, void *arg);
 void nettlp_stop_cb(void);
+
+
+/*
+ * Messaging API for NetTLP driver.
+ *
+ * Currently, this API enables libtlp applications to obtain NetTLP
+ * hardware information, such as BAR4 start address and MSIX talbe
+ * entries.
+ *
+ * Note: the message API creates udp socket every exectuon.
+ */
+#define	NETTLP_MSG_GET_BAR4_ADDR	1
+#define NETTLP_MSG_GET_MSIX_TABLE	2
+
+#define NETTLP_MAX_VEC	16	/* number of current MSIX vectors of NetTLP */
+
+/*
+ * nettlp_msg_get_bar4_start()
+ *
+ * @addr: remote host address in which NetTLP nic is installed.
+ * return value: if success, it returns BAR4 start address in MMIO-space.
+ * Otherwise, 0 is returned.
+ */
+uintptr_t nettlp_msg_get_bar4_start(struct in_addr addr);
+
+
+/*
+ * nettlp_msg_get_msix_table()
+ *
+ * @addr: remote host address in which NetTLP nic is installed.
+ * @msix: array of nettlp_msix structures.
+ * @msix_count: number of nettlp_msix structures in on @msix.
+ * return value: if success, it returns 0 and MSIX tablues values are
+ * written into @msix. Otherwise, -1 is returned and errno is set.
+ *
+ */
+
+struct nettlp_msix {
+        uint64_t addr;
+        uint32_t data;
+} __attribute__((__packed__));
+
+int nettlp_msg_get_msix_table(struct in_addr addr, struct nettlp_msix *msix,
+			      int msix_count);
 
 
 #endif /* _LIBTLP_H_ */
