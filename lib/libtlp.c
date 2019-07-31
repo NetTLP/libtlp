@@ -599,7 +599,7 @@ int nettlp_run_cb(struct nettlp **nt, int nnts,
 
 		for (n = 0; n < nnts; n++) {
 
-			if (!(x[0].revents & POLLIN))
+			if (!(x[n].revents & POLLIN))
 				continue;
 
 			ret = read(nt[n]->sockfd, buf, sizeof(buf));
