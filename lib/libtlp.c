@@ -685,7 +685,7 @@ uintptr_t nettlp_msg_get_bar4_start(struct in_addr addr)
 
 	ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
 	if (ret == 0) {
-		errno = -ETIME;
+		errno = ETIME;
 		goto err_out;
 	}
 
@@ -721,7 +721,7 @@ int nettlp_msg_get_msix_table(struct in_addr addr, struct nettlp_msix *msix,
 
 	ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
 	if (ret == 0) {
-		errno = -ETIME;
+		errno = ETIME;
 		goto err_out;
 	}
 

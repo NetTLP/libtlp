@@ -86,6 +86,10 @@ ssize_t dma_write_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
  * multiple struct nettlp contexts are handled by a single thread with poll
  */
 struct nettlp_cb {
+
+	uintptr_t start;
+	uintptr_t end;
+
 	int (*mrd)(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg);
 	int (*mwr)(struct nettlp *nt, struct tlp_mr_hdr *mh,
 		   void *m, size_t count, void *arg);
