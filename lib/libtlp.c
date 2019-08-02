@@ -684,8 +684,10 @@ uintptr_t nettlp_msg_get_bar4_start(struct in_addr addr)
 	x[0].events = POLLIN;
 
 	ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
-	if (ret <= 0)
+	if (ret == 0) {
+		errno = -ETIME;
 		goto err_out;
+	}
 
 	ret = read(sock, &bar4_addr, sizeof(bar4_addr));
 	if (ret < 0)
@@ -718,8 +720,10 @@ int nettlp_msg_get_msix_table(struct in_addr addr, struct nettlp_msix *msix,
 	x[0].events = POLLIN;
 
 	ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
-	if (ret <= 0)
+	if (ret == 0) {
+		errno = -ETIME;
 		goto err_out;
+	}
 
 	ret = read(sock, msix, sizeof(struct nettlp_msix) * msix_count);
 	if (ret < 0)
