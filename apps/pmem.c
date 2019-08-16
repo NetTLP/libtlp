@@ -259,8 +259,11 @@ void usage(void)
 	printf("usage\n"
 	       "    -r remote addr\n"
 	       "    -l local addr\n"
-	       "    -b bus number, XX:XX\n"
+	       "\n"
+	       "    -R remote host addr to get BAR4 start address\n"
+	       "    or"
 	       "    -a start addess (HEX)\n"
+	       "    -b bus number, XX:XX\n"
 	       "\n"
 	       "  initialize with packets options\n"
 	       "    -n nuber of packets\n"
@@ -278,6 +281,7 @@ int main(int argc, char **argv)
 #define NTHREADS	16	/* adapter v0.15.1 uses tag & 0xF for ports */
 
 	int ret, ch, n;
+	struct in_addr remote_host;
 	struct pmem pmem;
 	struct nettlp nt;	/* the original nettlp */
 	struct nettlp_cb cb;
@@ -294,7 +298,7 @@ int main(int argc, char **argv)
 	pktnum = 0;
 	pktlen = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:b:a:HSn:s:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:b:R:a:HSn:s:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -315,6 +319,22 @@ int main(int argc, char **argv)
 		case 'b':
 			ret = sscanf(optarg, "%hx:%hx", &busn, &devn);
 			nt.requester = (busn << 8 | devn);
+			break;
+
+		case 'R':
+			ret = inet_pton(AF_INET, optarg, &remote_host);
+			if (ret < 1) {
+				perror("inet_pton");
+				return -1;
+			}
+
+			addr = nettlp_msg_get_bar4_start(remote_host);
+			if (addr == 0) {
+				perror("nettlp_msg_get_bar4_start");
+				return -1;
+			}
+
+			nt.requester = nettlp_msg_get_dev_id(remote_host);
 			break;
 
 		case 'a':
@@ -363,7 +383,8 @@ int main(int argc, char **argv)
 		initialize_with_packets(pmem.mem, pktlen, pktnum);
 	}
 
-	pr_info("start pmem callbacks. start address is %#lx\n", addr);
+	pr_info("start pmem callbacks. BAR4 is %#lx, Dev is 0x%x\n",
+		addr, nt.requester);
 
 	/* initalize and start threads on each port 0x3000 + 0x0 ~ 0xF */
 	for (n = 0; n < NTHREADS; n++) {

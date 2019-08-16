@@ -701,6 +701,43 @@ err_out:
 	return 0;
 }
 
+uint16_t nettlp_msg_get_dev_id(struct in_addr addr)
+{
+	int sock, req, ret = 0;
+	uint16_t devid;
+	struct pollfd x[1];
+
+	sock = nettlp_msg_socket(addr);
+	if (sock < 1)
+		return 0;
+
+	/* send GET_BAR4 request */
+	req = NETTLP_MSG_GET_DEV_ID;
+	ret = write(sock, &req, sizeof(req));
+
+	/* recv response with timeout */
+	x[0].fd = sock;
+	x[0].events = POLLIN;
+
+	ret = poll(x, 1, LIBTLP_CPL_TIMEOUT);
+	if (ret == 0) {
+		errno = ETIME;
+		goto err_out;
+	}
+
+	ret = read(sock, &devid, sizeof(devid));
+	if (ret < 0)
+		goto err_out;
+
+	close(sock);
+	return devid;
+
+err_out:
+	close(sock);
+	return 0;
+}
+
+
 int nettlp_msg_get_msix_table(struct in_addr addr, struct nettlp_msix *msix,
 			      int msix_count)
 {

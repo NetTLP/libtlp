@@ -114,7 +114,8 @@ void nettlp_stop_cb(void);
  * Note: the message API creates udp socket every exectuon.
  */
 #define	NETTLP_MSG_GET_BAR4_ADDR	1
-#define NETTLP_MSG_GET_MSIX_TABLE	2
+#define NETTLP_MSG_GET_DEV_ID		2
+#define NETTLP_MSG_GET_MSIX_TABLE	3
 
 #define NETTLP_MAX_VEC	16	/* number of current MSIX vectors of NetTLP */
 
@@ -126,6 +127,16 @@ void nettlp_stop_cb(void);
  * Otherwise, 0 is returned.
  */
 uintptr_t nettlp_msg_get_bar4_start(struct in_addr addr);
+
+
+/*
+ * nettlp_msg_get_dev_id()
+ *
+ * @addr: remote host address in which NetTLP nic is installed.
+ * return value: if success, it returns 16bit device id that can be
+ * used for requester/completer id.
+ */
+uint16_t nettlp_msg_get_dev_id(struct in_addr addr);
 
 
 /*
