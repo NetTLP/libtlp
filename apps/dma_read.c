@@ -18,7 +18,7 @@ void usage(void)
 	       "    -t tag\n"
 	       "    -a target address\n"
 	       "    -s transfer size (default 4-byte)\n"
-	       "    -m MaxReadRequestSize"
+	       "    -m MaxReadRequestSize\n"
 		);
 }
 
