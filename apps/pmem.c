@@ -261,7 +261,7 @@ void usage(void)
 	       "    -l local addr\n"
 	       "\n"
 	       "    -R remote host addr to get BAR4 start address\n"
-	       "    or"
+	       "    or\n"
 	       "    -a start addess (HEX)\n"
 	       "    -b bus number, XX:XX\n"
 	       "\n"
@@ -383,8 +383,8 @@ int main(int argc, char **argv)
 		initialize_with_packets(pmem.mem, pktlen, pktnum);
 	}
 
-	pr_info("start pmem callbacks. BAR4 is %#lx, Dev is 0x%x\n",
-		addr, nt.requester);
+	printf("start pmem callbacks. BAR4 is %#lx, Dev is 0x%x\n",
+	       addr, nt.requester);
 
 	/* initalize and start threads on each port 0x3000 + 0x0 ~ 0xF */
 	for (n = 0; n < NTHREADS; n++) {
