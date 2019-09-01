@@ -591,8 +591,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	printf("cod area: %#lx-%#lx\n",
-	       pstart_code, pend_code);
+	printf("code area: %#lx-%#lx\n", pstart_code, pend_code);
 
 	done = 0;
 	code_len = pend_code - pstart_code;

@@ -267,11 +267,10 @@ demo.dump can be reassembled by objdump -M intel -m i386:x86-64 -b binary -D dem
 
 ```shell-session
 tsukumo1:/home/upa/work/nettlp/libtlp/apps % ./codedump -r 192.168.10.1 -b 1b:00 -s System.map -p 20286 -o code.dump
-cod area: 0x85a48b000-0x85a48bdb0
+code area: 0x85a48b000-0x85a48bdb0
 dump complete
-tsukumo1:/home/upa/work/nettlp/libtlp/apps % file code.dump             <18:05>
+tsukumo1:/home/upa/work/nettlp/libtlp/apps % file code.dump             <18:08>
 code.dump: ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/l, missing section headers
-tsukumo1:/home/upa/work/nettlp/libtlp/apps % 
 ```
 
 ```shell-session
