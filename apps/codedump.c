@@ -17,6 +17,14 @@
 
 #include "util.h"
 
+static int verbose = 0;
+
+#define pr_v(fmt, ...) do {                                          \
+                if (verbose) {                                        \
+                        fprintf(stdout, "%s: " fmt, __func__, ##__VA_ARGS__); \
+                }                                                       \
+        } while(0)
+
 /* from arch_x86/include/asm/page_64_types.h */
 #define KERNEL_IMAGE_SIZE	(512 * 1024 * 1024)
 //#define __PAGE_OFFSET_BASE      _AC(0xffff880000000000, UL)
@@ -299,7 +307,7 @@ struct task_struct* find_task(struct nettlp *nt, int pid,
 	 */
 
 	int ret;
-	struct task_struct *t;
+	struct task_struct *t, *wt;
 
 	t = malloc(sizeof(*t));
 	memset(t, 0, sizeof(*t));
@@ -318,9 +326,11 @@ struct task_struct* find_task(struct nettlp *nt, int pid,
 
 	if (t->children_next != t->vchildren) {
 		/* this task_struct has children. walk them */
-		return find_task(nt, pid,
-				 t->children_next - OFFSET_HEAD_SIBLING,
-				 t->vhead);
+		wt = find_task(nt, pid,
+			       t->children_next - OFFSET_HEAD_SIBLING,
+			       t->vhead);
+		if (wt)
+			return wt;
 	}
 	
 	if (t->sibling_next - OFFSET_HEAD_SIBLING == parent ||
@@ -440,12 +450,15 @@ void usage(void)
 	printf("usage\n"
 	       "    -r remote addr\n"
 	       "    -l local addr\n"
+	       "    -R remote host addr to get requester id\n"
 	       "    -b bus number, XX:XX\n"
 	       "    -t tag\n"
 	       "\n"
 	       "    -s Systemmap file\n"
 	       "    -p pid\n"
 	       "    -o output file\n"
+	       "\n"
+	       "    -v verbose mode\n"
 	);
 }
 
@@ -454,6 +467,7 @@ int main(int argc, char **argv)
 {
 	int ret, ch;
 	struct nettlp nt;
+	struct in_addr remote_host;
 	uintptr_t addr;
 	uint16_t busn, devn;
 	struct task_struct t, *target;
@@ -469,7 +483,7 @@ int main(int argc, char **argv)
 	pid = -1;	/* never match */
 	output = NULL;
 
-	while ((ch = getopt(argc, argv, "r:l:b:t:s:p:o:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:R:b:t:s:p:o:v")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -485,6 +499,16 @@ int main(int argc, char **argv)
 				perror("inet_pton");
 				return -1;
 			}
+			break;
+
+		case 'R':
+			ret = inet_pton(AF_INET, optarg, &remote_host);
+			if (ret < 1) {
+				perror("inet_pton");
+				return -1;
+			}
+
+			nt.requester = nettlp_msg_get_dev_id(remote_host);
 			break;
 
 		case 'b':
@@ -506,6 +530,10 @@ int main(int argc, char **argv)
 
 		case 'o':
 			output = optarg;
+			break;
+
+		case 'v':
+			verbose++;
 			break;
 
 		default :
@@ -545,6 +573,12 @@ int main(int argc, char **argv)
 	uintptr_t pstart_code, pend_code;
 	size_t read_len, code_len, done;
 
+	//printf("find, pgd is %lx\n", target->pgd);
+	pr_v("find, mm v %#lx, p %#lx\n", target->vmm, target->pmm);
+	pr_v("find, pgd is %#lx\n", target->pgd);
+	pr_v("find, start_code %#lx\n", target->start_code);
+	pr_v("find, end_code   %#lx\n", target->end_code);
+
 	pstart_code = pgd_walk(&nt, target->pgd, target->start_code);
 	if (pstart_code == 0) {
 		fprintf(stderr, "start_code read failed\n");
@@ -557,7 +591,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	printf("start_code paddr is %#lx, end_code paddr is %#lx\n",
+	printf("cod area: %#lx-%#lx\n",
 	       pstart_code, pend_code);
 
 	done = 0;
@@ -581,7 +615,6 @@ int main(int argc, char **argv)
 	printf("dump complete\n");
 
 	if (output) {
-		printf("write the binary to %s\n", output);
 		f = open(output, O_CREAT|O_RDWR,
 			 S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 		ret = write(f, buf, code_len);

@@ -17,7 +17,7 @@ Linux has a task_struct for the first process, called swapper.  The
 address of the swapper process is noted in System.map.  process-list
 finds all task_struct from the task_struct of the swapper process.
 
-```
+```shell-session
 % ./process-list -r 192.168.10.1 -R 130.69.250.234 -s System.map       
 PhyAddr             PID STAT COMMAND
 0x00000003411740      0 R    swapper/0
@@ -264,3 +264,115 @@ PhyAddr             PID STAT COMMAND
 - ./codedump -r 192.168.10.1 -b 1b:00 -s ./System.map-4.20.2-tsukumo1-nopti -p 17022 -o demo.dump
 
 demo.dump can be reassembled by objdump -M intel -m i386:x86-64 -b binary -D demo.dump
+
+```shell-session
+tsukumo1:/home/upa/work/nettlp/libtlp/apps % ./codedump -r 192.168.10.1 -b 1b:00 -s System.map -p 20286 -o test.dump
+cod area: 0x85a48b000-0x85a48bdb0
+dump complete
+tsukumo1:/home/upa/work/nettlp/libtlp/apps % objdump -M intel -m i386:x86-64 -b binary -D test.dump
+
+test.dump:     file format binary
+
+
+Disassembly of section .data:
+
+0000000000000000 <.data>:
+   0:	7f 45                	jg     0x47
+   2:	4c                   	rex.WR
+   3:	46 02 01             	rex.RX add r8b,BYTE PTR [rcx]
+   6:	01 00                	add    DWORD PTR [rax],eax
+	...
+  10:	03 00                	add    eax,DWORD PTR [rax]
+  12:	3e 00 01             	add    BYTE PTR ds:[rcx],al
+  15:	00 00                	add    BYTE PTR [rax],al
+  17:	00 40 08             	add    BYTE PTR [rax+0x8],al
+  1a:	00 00                	add    BYTE PTR [rax],al
+  1c:	00 00                	add    BYTE PTR [rax],al
+  1e:	00 00                	add    BYTE PTR [rax],al
+  20:	40 00 00             	add    BYTE PTR [rax],al
+  23:	00 00                	add    BYTE PTR [rax],al
+  25:	00 00                	add    BYTE PTR [rax],al
+  27:	00 10                	add    BYTE PTR [rax],dl
+  29:	2b 00                	sub    eax,DWORD PTR [rax]
+	...
+  33:	00 40 00             	add    BYTE PTR [rax+0x0],al
+  36:	38 00                	cmp    BYTE PTR [rax],al
+  38:	09 00                	or     DWORD PTR [rax],eax
+  3a:	40 00 1d 00 1c 00 06 	add    BYTE PTR [rip+0x6001c00],bl        # 0x6001c41
+  41:	00 00                	add    BYTE PTR [rax],al
+  43:	00 04 00             	add    BYTE PTR [rax+rax*1],al
+  46:	00 00                	add    BYTE PTR [rax],al
+  48:	40 00 00             	add    BYTE PTR [rax],al
+  4b:	00 00                	add    BYTE PTR [rax],al
+  4d:	00 00                	add    BYTE PTR [rax],al
+  4f:	00 40 00             	add    BYTE PTR [rax+0x0],al
+  52:	00 00                	add    BYTE PTR [rax],al
+  54:	00 00                	add    BYTE PTR [rax],al
+  56:	00 00                	add    BYTE PTR [rax],al
+  58:	40 00 00             	add    BYTE PTR [rax],al
+  5b:	00 00                	add    BYTE PTR [rax],al
+  5d:	00 00                	add    BYTE PTR [rax],al
+  5f:	00 f8                	add    al,bh
+  61:	01 00                	add    DWORD PTR [rax],eax
+  63:	00 00                	add    BYTE PTR [rax],al
+  65:	00 00                	add    BYTE PTR [rax],al
+  67:	00 f8                	add    al,bh
+  69:	01 00                	add    DWORD PTR [rax],eax
+  6b:	00 00                	add    BYTE PTR [rax],al
+  6d:	00 00                	add    BYTE PTR [rax],al
+  6f:	00 08                	add    BYTE PTR [rax],cl
+  71:	00 00                	add    BYTE PTR [rax],al
+  73:	00 00                	add    BYTE PTR [rax],al
+  75:	00 00                	add    BYTE PTR [rax],al
+  77:	00 03                	add    BYTE PTR [rbx],al
+  79:	00 00                	add    BYTE PTR [rax],al
+  7b:	00 04 00             	add    BYTE PTR [rax+rax*1],al
+  7e:	00 00                	add    BYTE PTR [rax],al
+  80:	38 02                	cmp    BYTE PTR [rdx],al
+  82:	00 00                	add    BYTE PTR [rax],al
+  84:	00 00                	add    BYTE PTR [rax],al
+  86:	00 00                	add    BYTE PTR [rax],al
+  88:	38 02                	cmp    BYTE PTR [rdx],al
+  8a:	00 00                	add    BYTE PTR [rax],al
+  8c:	00 00                	add    BYTE PTR [rax],al
+  8e:	00 00                	add    BYTE PTR [rax],al
+  90:	38 02                	cmp    BYTE PTR [rdx],al
+  92:	00 00                	add    BYTE PTR [rax],al
+  94:	00 00                	add    BYTE PTR [rax],al
+  96:	00 00                	add    BYTE PTR [rax],al
+  98:	1c 00                	sbb    al,0x0
+  9a:	00 00                	add    BYTE PTR [rax],al
+  9c:	00 00                	add    BYTE PTR [rax],al
+  9e:	00 00                	add    BYTE PTR [rax],al
+  a0:	1c 00                	sbb    al,0x0
+  a2:	00 00                	add    BYTE PTR [rax],al
+  a4:	00 00                	add    BYTE PTR [rax],al
+  a6:	00 00                	add    BYTE PTR [rax],al
+  a8:	01 00                	add    DWORD PTR [rax],eax
+  aa:	00 00                	add    BYTE PTR [rax],al
+  ac:	00 00                	add    BYTE PTR [rax],al
+  ae:	00 00                	add    BYTE PTR [rax],al
+  b0:	01 00                	add    DWORD PTR [rax],eax
+  b2:	00 00                	add    BYTE PTR [rax],al
+  b4:	05 00 00 00 00       	add    eax,0x0
+	...
+  cd:	00 00                	add    BYTE PTR [rax],al
+  cf:	00 b0 0d 00 00 00    	add    BYTE PTR [rax+0xd],dh
+  d5:	00 00                	add    BYTE PTR [rax],al
+  d7:	00 b0 0d 00 00 00    	add    BYTE PTR [rax+0xd],dh
+  dd:	00 00                	add    BYTE PTR [rax],al
+  df:	00 00                	add    BYTE PTR [rax],al
+  e1:	00 20                	add    BYTE PTR [rax],ah
+  e3:	00 00                	add    BYTE PTR [rax],al
+  e5:	00 00                	add    BYTE PTR [rax],al
+  e7:	00 01                	add    BYTE PTR [rcx],al
+  e9:	00 00                	add    BYTE PTR [rax],al
+  eb:	00 06                	add    BYTE PTR [rsi],al
+  ed:	00 00                	add    BYTE PTR [rax],al
+  ef:	00 68 1d             	add    BYTE PTR [rax+0x1d],ch
+  f2:	00 00                	add    BYTE PTR [rax],al
+  f4:	00 00                	add    BYTE PTR [rax],al
+  f6:	00 00                	add    BYTE PTR [rax],al
+  f8:	68 1d 20 00 00       	push   0x201d
+  fd:	00 00                	add    BYTE PTR [rax],al
+```
