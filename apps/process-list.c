@@ -74,7 +74,7 @@ unsigned long __phys_addr(unsigned long x)
 
 char state_to_char(long state)
 {
-	switch(state &0x00FF) {
+	switch(state & 0x00FF) {
 	case TASK_RUNNING:
 		return 'R';
 	case TASK_INTERRUPTIBLE:
@@ -218,7 +218,7 @@ int fill_task_struct(struct nettlp *nt, uintptr_t vhead,
 
 void print_task_struct_column(void)
 {
-	printf("PhyAddr             PID STAT        COMMAND\n");
+	printf("PhyAddr             PID STAT COMMAND\n");
 }
 	
 
@@ -248,8 +248,8 @@ int print_task_struct(struct nettlp *nt, struct task_struct t)
 
 	comm[TASK_COMM_LEN - 1] = '\0';	/* preventing overflow */
 
-	printf("%#016lx %6d    %c 0x%04lx %s\n",
-	       t.phead, pid, state_to_char(state), state, comm);
+	printf("%#016lx %6d %c    %s\n",
+	       t.phead, pid, state_to_char(state), comm);
 
 	return 0;
 }
@@ -327,7 +327,8 @@ void usage(void)
 	printf("usage\n"
 	       "    -r remote addr\n"
 	       "    -l local addr\n"
-	       "    -b bus number, XX:XX\n"
+	       "    -R remote host addr to get requester id\n"
+	       "    -b bus number, XX:XX (exclusive with -R)\n"
 	       "    -t tag\n"
 	       "    -s path to System.map\n"
 	);
@@ -338,6 +339,7 @@ int main(int argc, char **argv)
 {
 	int ret, ch;
 	struct nettlp nt;
+	struct in_addr remote_host;
 	uintptr_t addr;
 	uint16_t busn, devn;
 	struct task_struct t;
@@ -349,7 +351,7 @@ int main(int argc, char **argv)
 	devn = 0;
 	map = NULL;
 
-	while ((ch = getopt(argc, argv, "r:l:b:t:s:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:R:b:t:s:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -365,6 +367,16 @@ int main(int argc, char **argv)
 				perror("inet_pton");
 				return -1;
 			}
+			break;
+
+		case 'R':
+			ret = inet_pton(AF_INET, optarg, &remote_host);
+			if (ret < 1) {
+				perror("inet_pton");
+				return -1;
+			}
+
+			nt.requester = nettlp_msg_get_dev_id(remote_host);
 			break;
 
 		case 'b':
