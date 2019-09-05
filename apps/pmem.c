@@ -30,6 +30,7 @@
 
 static int nostdout = 0;
 static int nohex = 0;
+static int mrd_sleep = 0;
 
 #define pr_info(fmt, ...) do {						\
 		if (!nostdout) {					\
@@ -134,6 +135,8 @@ int pmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
 	struct nettlp_hdr nh;
 	struct tlp_cpl_hdr ch;
 	struct iovec iov[3];
+
+	usleep(mrd_sleep);
 
 	/* CplD packet */
 	iov[0].iov_base = &nh;
@@ -269,6 +272,9 @@ void usage(void)
 	       "    -n nuber of packets\n"
 	       "    -s packet size\n"
 	       "\n"
+	       "  testing options\n"
+	       "    -m sleep on mrd (usec)\n"
+	       "\n"
 	       "  output options\n"
 	       "    -H no hexdump\n"
 	       "    -S no stdout\n"
@@ -298,7 +304,7 @@ int main(int argc, char **argv)
 	pktnum = 0;
 	pktlen = 0;
 
-	while ((ch = getopt(argc, argv, "r:l:b:R:a:HSn:s:")) != -1) {
+	while ((ch = getopt(argc, argv, "r:l:b:R:a:m:HSn:s:")) != -1) {
 		switch (ch) {
 		case 'r':
 			ret = inet_pton(AF_INET, optarg, &nt.remote_addr);
@@ -339,6 +345,10 @@ int main(int argc, char **argv)
 
 		case 'a':
 			ret = sscanf(optarg, "0x%lx", &addr);
+			break;
+
+		case 'm':
+			mrd_sleep = atoi(optarg);
 			break;
 
 		case 'H':
