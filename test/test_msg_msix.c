@@ -25,7 +25,7 @@ int main(int argc, char **argv)
 	}
 
 	for (n = 0; n < 16; n++) {
-		printf("MSIX[%d] ADDR=%#lx DATA=%x\n",
+		printf("MSIX[%d] ADDR=%#llx DATA=%x\n",
 		       n, msix[n].addr, msix[n].data);
 	}
 
