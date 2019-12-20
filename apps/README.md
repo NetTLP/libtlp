@@ -7,7 +7,7 @@
 ### dma_write
 
 
-### pmem
+### psmem
 
 ### process-list
 

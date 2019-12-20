@@ -1,6 +1,6 @@
 dma_read
 dma_write
-pmem
+psmem
 process-list
 pgd-walk
 codedump

@@ -106,16 +106,16 @@ void initialize_with_packets(void *p, int pktlen, int pktnum)
 }
 
 
-struct pmem {
+struct psmem {
 	uintptr_t addr;
 	size_t size;
 	void *mem;
 };
 
-struct pmem_thread {
+struct psmem_thread {
 	pthread_t tid;
 	struct nettlp nt;
-	struct pmem *pmem;
+	struct psmem *psmem;
 	struct nettlp_cb *cb;
 };
 
@@ -126,10 +126,10 @@ int send_cpl_abort(struct nettlp *nt, struct tlp_mr_hdr *mh)
 
 
 
-int pmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
+int psmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
 {
 	int ret;
-	struct pmem *p = arg;
+	struct psmem *p = arg;
 	ssize_t len, data_len;
 	uintptr_t addr;
 	struct nettlp_hdr nh;
@@ -198,10 +198,10 @@ int pmem_mrd(struct nettlp *nt, struct tlp_mr_hdr *mh, void *arg)
 	return 0;
 }
 
-int pmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
+int psmem_mwr(struct nettlp *nt, struct tlp_mr_hdr *mh,
 	     void *m, size_t count, void *arg)
 {
-	struct pmem *p = arg;
+	struct psmem *p = arg;
 	uintptr_t addr;
 	
 	addr = tlp_mr_addr(mh);
@@ -242,7 +242,7 @@ void sig_handler(int sig)
 
 void *nettlp_cb_thread(void *arg)
 {
-	struct pmem_thread *pt = arg;
+	struct psmem_thread *pt = arg;
 	int cpu = pt->nt.tag % count_online_cpus();
 	cpu_set_t target_cpu_set;
 	struct nettlp *nt = &pt->nt;
@@ -252,7 +252,7 @@ void *nettlp_cb_thread(void *arg)
 	pthread_setaffinity_np(pt->tid, sizeof(cpu_set_t), &target_cpu_set);
 
 	pr_info("start callback on cpu %d, port %u\n", cpu, pt->nt.port);
-	nettlp_run_cb(&(nt), 1, pt->cb, pt->pmem);
+	nettlp_run_cb(&(nt), 1, pt->cb, pt->psmem);
 
 	return NULL;
 }
@@ -288,10 +288,10 @@ int main(int argc, char **argv)
 
 	int ret, ch, n;
 	struct in_addr remote_host;
-	struct pmem pmem;
+	struct psmem psmem;
 	struct nettlp nt;	/* the original nettlp */
 	struct nettlp_cb cb;
-	struct pmem_thread pth[NTHREADS];
+	struct psmem_thread pth[NTHREADS];
 	uintptr_t addr;
 	uint16_t busn, devn;
 	int pktnum, pktlen;
@@ -373,14 +373,14 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/* initalize pmem area and callback */
-	pmem.addr = addr;
-	pmem.mem = malloc(1024 * 1024 * 256);	/* 256MB */
-	pmem.size = 1024 * 1024 * 256;
+	/* initalize psmem area and callback */
+	psmem.addr = addr;
+	psmem.mem = malloc(1024 * 1024 * 256);	/* 256MB */
+	psmem.size = 1024 * 1024 * 256;
 
 	memset(&cb, 0, sizeof(cb));
-	cb.mrd = pmem_mrd;
-	cb.mwr = pmem_mwr;
+	cb.mrd = psmem_mrd;
+	cb.mwr = psmem_mwr;
 
 	if (pktnum > 0 && pktlen >= 60) {
 		if (pktlen > 2048) {
@@ -390,15 +390,15 @@ int main(int argc, char **argv)
 
 		pr_info("initalize the region with %d %d-byte packets\n",
 			pktnum, pktlen);
-		initialize_with_packets(pmem.mem, pktlen, pktnum);
+		initialize_with_packets(psmem.mem, pktlen, pktnum);
 	}
 
-	printf("start pmem callbacks. BAR4 is %#lx, Dev is 0x%x\n",
+	printf("start psmem callbacks. BAR4 is %#lx, Dev is 0x%x\n",
 	       addr, nt.requester);
 
 	/* initalize and start threads on each port 0x3000 + 0x0 ~ 0xF */
 	for (n = 0; n < NTHREADS; n++) {
-		pth[n].pmem = &pmem;
+		pth[n].psmem = &psmem;
 		pth[n].cb = &cb;
 		pth[n].nt = nt;
 		pth[n].nt.tag = n;
