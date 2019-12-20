@@ -260,8 +260,8 @@ void *nettlp_cb_thread(void *arg)
 void usage(void)
 {
 	printf("usage\n"
-	       "    -r remote addr\n"
-	       "    -l local addr\n"
+	       "    -r remote addr at NetTLP link\n"
+	       "    -l local addr at NetTLP link\n"
 	       "\n"
 	       "    -R remote host addr to get BAR4 start address\n"
 	       "    or\n"

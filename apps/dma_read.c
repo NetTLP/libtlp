@@ -12,9 +12,9 @@
 void usage(void)
 {
 	printf("usage\n"
-	       "    -r remote addr\n"
-	       "    -l local addr\n"
-	       "    -b bus number, XX:XX\n"
+	       "    -r remote addr at NetTLP link\n"
+	       "    -l local addr at NetTLP link\n"
+	       "    -b bus number of NetTLP adapter, XX:XX\n"
 	       "    -t tag\n"
 	       "    -a target address\n"
 	       "    -s transfer size (default 4-byte)\n"
