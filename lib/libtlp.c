@@ -240,6 +240,8 @@ int nettlp_init(struct nettlp *nt)
 	if (ret < 0)
 		return ret;
 
+	pthread_mutex_init(&nt->mutex, NULL);
+
 	nt->sockfd = fd;
 	return 0;
 }
@@ -368,9 +370,11 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 	}
 
 out:
+	pthread_mutex_unlock(&nt->mutex);
 	return received;
 
 err_out:
+	pthread_mutex_unlock(&nt->mutex);
 	return ret;
 }
 
@@ -383,6 +387,8 @@ ssize_t dma_read(struct nettlp *nt, uintptr_t addr, void *buf, size_t count)
 	struct tlp_mr_hdr mh;
 	uint64_t dst_addr64;
 	uint32_t dst_addr32;
+
+	pthread_mutex_lock(&nt->mutex);
 
 	memset(&nh, 0, sizeof(nh));
 	memset(&mh, 0, sizeof(mh));

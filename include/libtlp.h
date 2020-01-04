@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <netinet/in.h>
+#include <pthread.h>
 
 #include <tlp.h>
 
@@ -36,6 +37,8 @@ struct nettlp {
 	/* variable */
 	int sockfd;
 	uint16_t port;
+
+	pthread_mutex_t mutex;	/* mutex for DMA read transactions */
 };
 
 
