@@ -5,7 +5,7 @@ LDLIBS  := -ltlp -lpthread
 CFLAGS  := -g -Wall $(INCLUDE)
 
 PROGNAME = dma_read dma_write psmem process-list pgd-walk codedump \
-	   tlpperf
+	   tlpperf pcie_cfg_read pcie_cfg_write
 
 all: $(PROGNAME)
 

@@ -211,12 +211,13 @@ void *tlp_cpld_data(struct tlp_cpl_hdr *ch)
  * nettlp
  */
 
-int nettlp_init(struct nettlp *nt)
+static int nettlp_create_udp_socket(struct in_addr remote_addr,
+				    uint16_t remote_port,
+				    struct in_addr local_addr,
+				    uint16_t local_port)
 {
 	int fd, ret;
 	struct sockaddr_in saddr;
-
-	nt->port = NETTLP_PORT_BASE + (nt->tag & 0x0F);
 
 	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (fd < 0)
@@ -225,8 +226,8 @@ int nettlp_init(struct nettlp *nt)
 	/* bind to local address */
 	memset(&saddr, 0, sizeof(saddr));
 	saddr.sin_family = AF_INET;
-	saddr.sin_addr = nt->local_addr;
-	saddr.sin_port = htons(nt->port);
+	saddr.sin_addr = local_addr;
+	saddr.sin_port = htons(local_port);
 	ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
 	if (ret < 0)
 		return ret;
@@ -234,13 +235,28 @@ int nettlp_init(struct nettlp *nt)
 	/* connect to remote address */
 	memset(&saddr, 0, sizeof(saddr));
 	saddr.sin_family = AF_INET;
-	saddr.sin_addr = nt->remote_addr;
-	saddr.sin_port = htons(nt->port);
+	saddr.sin_addr = remote_addr;
+	saddr.sin_port = htons(remote_port);
 	ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
 	if (ret < 0)
 		return ret;
 
+	return fd;
+}
+
+int nettlp_init(struct nettlp *nt)
+{
+	int fd;
+
+	nt->port = NETTLP_PORT_BASE + (nt->tag & 0x0F);
+
+	fd = nettlp_create_udp_socket(nt->remote_addr, nt->port,
+				      nt->local_addr, nt->port);
+	if (fd < 0)
+		return fd;
+
 	nt->sockfd = fd;
+
 	return 0;
 }
 
@@ -772,4 +788,226 @@ int nettlp_msg_get_msix_table(struct in_addr addr, struct nettlp_msix *msix,
 err_out:
 	close(sock);
 	return -1;
+}
+
+
+/*
+ * PCIe Configuration API
+ *
+ * see https://scrapbox.io/sora/NetTLP_packet
+ */
+
+struct nettlp_pcie_cfg_pkt {
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	uint16_t dwaddrh : 2;
+	uint8_t mask : 4;
+	uint8_t cmd: 2;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+	uint8_t cmd: 2;
+	uint8_t mask : 4;
+	uint16_t dwaddrh : 2;
+
+#endif
+	uint8_t dwaddrl;
+
+	uint32_t data;
+
+} __attribute__((packed));
+
+#define NETTLP_PCIE_CFG_CMD_READ	0x0
+#define NETTLP_PCIE_CFG_CMD_WRITE	0x1
+
+#define NETTLP_PCIE_CFG_TIMEOUT		1000	/* msec */
+
+int nettlp_pcie_cfg_init(struct nettlp_pcie_cfg *ntpc)
+{
+	int fd;
+
+	fd = nettlp_create_udp_socket(ntpc->remote_addr, NETTLP_PCIE_CFG_PORT,
+				      ntpc->local_addr, NETTLP_PCIE_CFG_PORT);
+	if (fd < 0)
+		return fd;
+
+	ntpc->sockfd = fd;
+	return 0;
+}
+
+static void pcie_cfg_set_dwaddr(struct nettlp_pcie_cfg_pkt *pkt,
+				uint16_t dwaddr)
+{
+	pkt->dwaddrh = ((dwaddr & 0x0300)) >> 8;
+	pkt->dwaddrl = (dwaddr & 0x00FF);
+}
+
+static int pcie_cfg_read_dw(struct nettlp_pcie_cfg *ntpc, uint16_t dwaddr,
+			    uint8_t mask, uint32_t *data)
+{
+	int ret;
+	struct nettlp_pcie_cfg_pkt pkt;
+	struct pollfd x[1];
+
+	/* send READ command */
+	pkt.cmd = NETTLP_PCIE_CFG_CMD_READ;
+	pkt.mask = mask;
+	pcie_cfg_set_dwaddr(&pkt, dwaddr);
+	pkt.data = 0;
+	ret = write(ntpc->sockfd, &pkt, sizeof(pkt));
+	if (ret < 0)
+		return ret;
+
+	/* receive READ command reply */
+	x[0].fd = ntpc->sockfd;
+	x[0].events = POLLIN;
+
+	ret = poll(x, 1, NETTLP_PCIE_CFG_TIMEOUT);
+	if (ret < 0)
+		return ret;
+	if (ret == 0) {
+		errno = ETIME;
+		return -1;
+	}
+	if (!(x[0].revents & POLLIN)) {
+		errno = ENODATA;
+		return -1;
+	}
+
+	ret = read(ntpc->sockfd, &pkt, sizeof(pkt));
+	if (ret < 0)
+		return ret;
+
+	*data = be32toh(pkt.data);
+
+	printf("%s: data is 0x%x\n", __func__, pkt.data);
+
+	return 0;
+}
+
+static int pcie_cfg_write_dw(struct nettlp_pcie_cfg *ntpc, uint16_t dwaddr,
+			     uint8_t mask, uint32_t data)
+{
+	int ret;
+	struct nettlp_pcie_cfg_pkt pkt;
+
+	pkt.cmd = NETTLP_PCIE_CFG_CMD_WRITE;
+	pkt.mask = mask;
+	pcie_cfg_set_dwaddr(&pkt, dwaddr);
+	pkt.data = htobe32(data);
+	ret = write(ntpc->sockfd, &pkt, sizeof(pkt));
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+ssize_t nettlp_pcie_cfg_read(struct nettlp_pcie_cfg *ntpc, uint16_t addr,
+			     void *buf, size_t count)
+{
+	int ret;
+	uint16_t dwaddr;
+	uint8_t mask;
+	uint32_t data;
+	uint8_t *ptr;
+
+	int len, read = 0;
+	uint16_t start_dwaddr, end_dwaddr;
+	int fstpad;	/* unnecessary bytes in first DWORD */
+	int lstpad;	/* unnecessary bytes in last DWORD */
+
+	fstpad = addr & 0x0003;
+	lstpad = 4 - ((addr + count) & 0x0003);
+
+	start_dwaddr = addr >> 2;
+	end_dwaddr = (addr + count) >> 2;
+	/* A cornor case: If (addr + count) is a multple of 4, lastpad
+	 * becomes 4, which means no need to read the end dword.
+	 * Thus, decrement end_dwaddr and set lstpad 0.
+	 */
+	if (lstpad == 4) {
+		lstpad = 0;
+		end_dwaddr--;
+	}
+
+	for (dwaddr = start_dwaddr; dwaddr <= end_dwaddr; dwaddr++) {
+
+		mask = 0xF;
+		if (dwaddr == start_dwaddr && fstpad) {
+			mask &= ((0x0F << fstpad) & 0x0F);
+		}
+		if (dwaddr == end_dwaddr && lstpad) {
+			mask &= ((0x0F >> lstpad) & 0x0F);
+		}
+
+		ret = pcie_cfg_read_dw(ntpc, dwaddr, mask, &data);
+		if (ret < 0)
+			return ret;
+
+		len = 4;
+		ptr = (uint8_t *)&data;
+		if (dwaddr == start_dwaddr && fstpad) {
+			len -= fstpad;
+			ptr += fstpad;
+		}
+		if (dwaddr == end_dwaddr && lstpad) {
+			len -= lstpad;
+		}
+
+		memcpy(buf, ptr, len);
+		buf += len;
+		read += len;
+	}
+
+	return read;
+}
+
+ssize_t nettlp_pcie_cfg_write(struct nettlp_pcie_cfg *ntpc, uint16_t addr,
+			      void *buf, size_t count)
+{
+	int ret;
+	uint16_t dwaddr;
+	uint8_t mask;
+	uint32_t data;
+	uint8_t *ptr;
+
+	int len, written = 0;
+	uint16_t start_dwaddr, end_dwaddr;
+	int fstpad;	/* unnecessary bytes in first DWORD */
+	int lstpad;	/* unnecessary bytes in last DWORD */
+
+	fstpad = addr & 0x0003;
+	lstpad = 4 - ((addr + count) & 0x0003);
+
+	start_dwaddr = addr >> 2;
+	end_dwaddr = (addr + count) >> 2;
+	if (lstpad == 4) {
+		lstpad = 0;
+		end_dwaddr--;
+	}
+
+	for (dwaddr = start_dwaddr; dwaddr <= end_dwaddr; dwaddr++) {
+		len = 4;
+		mask = 0xF;
+		data = 0;
+		ptr = (uint8_t *)&data;
+		if (dwaddr == start_dwaddr && fstpad) {
+			mask &= ((0x0F << fstpad) & 0x0F);
+			len -= fstpad;
+			ptr += fstpad;
+		}
+		if (dwaddr == end_dwaddr && lstpad) {
+			mask &= ((0x0F >> lstpad) & 0x0F);
+			len -= lstpad;
+		}
+
+		memcpy(ptr, buf, len);
+
+		ret = pcie_cfg_write_dw(ntpc, dwaddr, mask, data);
+		if (ret < 0)
+			return ret;
+
+		buf += len;
+		written += len;
+	}
+
+	return written;
 }

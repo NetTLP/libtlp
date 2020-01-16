@@ -159,4 +159,48 @@ int nettlp_msg_get_msix_table(struct in_addr addr, struct nettlp_msix *msix,
 			      int msix_count);
 
 
+
+/*
+ * PCIe Configuration API.
+ *
+ * Since v0.22, the NetTLP adapter supports manipulating PCIe
+ * configuration registers from libtlp.
+ */
+
+#define NETTLP_PCIE_CFG_PORT	0x4001
+
+struct nettlp_pcie_cfg {
+
+	/* connection endpoints for communicating NetTLP adapter */
+	struct in_addr remote_addr;
+	struct in_addr local_addr;
+
+	/* private variable */
+	int sockfd;
+};
+
+/*
+ * nettlp_pcie_cfg_init() just creates UDP socket and save it on the struct
+ * nettlp_pcie_cfg.
+ */
+int nettlp_pcie_cfg_init(struct nettlp_pcie_cfg *ntpc);
+
+
+/*
+ * nettlp_pcie_cfg_read() and nettlp_pcie_cfg_write()
+ *
+ * read and write PCIe configuration space of NetTLP adapter.
+ *
+ * @ntpc: struct nettlp_pcie_cfg, must be initialized in advance.
+ * @addr: target address on PCIe configuration space of the NetTLP adapter
+ * @buf: buffer to bytes to be written or read.
+ * @count: number of bytes to be written or read.
+ * returns number of bytes written or read.
+ */
+ssize_t nettlp_pcie_cfg_read(struct nettlp_pcie_cfg *ntpc, uint16_t addr,
+			     void *buf, size_t count);
+ssize_t nettlp_pcie_cfg_write(struct nettlp_pcie_cfg *ntpc, uint16_t addr,
+			      void *buf, size_t cout);
+
+
 #endif /* _LIBTLP_H_ */

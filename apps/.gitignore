@@ -5,6 +5,8 @@ process-list
 pgd-walk
 codedump
 tlpperf
+pcie_cfg_read
+pcie_cfg_write
 
 core
 
