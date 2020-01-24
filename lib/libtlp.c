@@ -644,6 +644,8 @@ int nettlp_run_cb(struct nettlp **nt, int nnts,
 
 				cb->cpld(nt[n], ch, tlp_cpld_data(ch),
 					 tlp_cpld_data_length(ch), arg);
+			} else if (cb->other) {
+				cb->other(nt[n], th, arg);
 			}
 		}
 	}
@@ -877,8 +879,6 @@ static int pcie_cfg_read_dw(struct nettlp_pcie_cfg *ntpc, uint16_t dwaddr,
 		return ret;
 
 	*data = be32toh(pkt.data);
-
-	printf("%s: data is 0x%x\n", __func__, pkt.data);
 
 	return 0;
 }
