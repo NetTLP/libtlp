@@ -10,4 +10,4 @@ ssize_t dma_read(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
 ssize_t dma_write(struct nettlp *nt, uintptr_t addr, void *buf, size_t count);
 ```
 
-Documents about NetTLP including LibTLP is in http://haeena.dev/nettlp
+Documents about NetTLP including LibTLP are in http://haeena.dev/nettlp
