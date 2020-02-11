@@ -96,7 +96,10 @@ struct nettlp_cb {
 	int (*cpl)(struct nettlp *nt, struct tlp_cpl_hdr *ch, void *arg);
 	int (*cpld)(struct nettlp *nt, struct tlp_cpl_hdr *ch,
 		    void *m, size_t count, void *arg);
+	int (*other)(struct nettlp *nt, struct tlp_hdr *tlp, void *arg);
 };
+/* *other is called when TLP type is not MRd|MWr|Cpl|CplD */
+
 
 #define NETTLP_CB_MAX_NTS	16
 
