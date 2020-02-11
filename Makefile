@@ -11,7 +11,7 @@ clean:
 	@(for d in $(subdirs); do $(MAKE) -C $$d clean; done)
 
 install: all
-        $(install) $(install_h) /usr/local/include/
-        $(install) $(install_l) /usr/local/lib/
+	$(install) $(install_h) /usr/local/include/
+	$(install) $(install_l) /usr/local/lib/
 
 remake: clean all
