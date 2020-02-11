@@ -293,8 +293,11 @@ static ssize_t libtlp_read_cpld(struct nettlp *nt, void *buf,
 		if (ret < 0)
 			goto err_out;
 
-		if (ret == 0)
-			goto out;
+		if (ret == 0) {
+			ret = -1;
+			errno = ETIME;
+			goto err_out;
+		}
 
 		if (!(x[0].revents & POLLIN))
 			goto err_out;
