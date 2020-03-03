@@ -9,9 +9,15 @@
 #include <tlp.h>
 
 
-#define NETTLP_PORT_BASE	12288	/* actual port number is
-					 * NETTLP_PORT_BASE + (tag & 0x0F) */
-#define NETTLP_MSG_PORT		12287	/* Port for messaging API */
+#define NETTLP_MSG_PORT		0x2FFF	/* 12287, Port for messaging API */
+
+#define NETTLP_LIBTLP_PORT_BASE		0x3000
+#define NETTLP_ADAPTER_PORT_BASE	0x4000
+/* NETTLP_PORT_BASE: Base UDP port numbers for NetTLP
+ * encapsulation. The detail is described below (enum
+ * dma_direction).
+ */
+
 
 /*
  * NetTLP specific header
@@ -22,21 +28,55 @@ struct nettlp_hdr {
 } __attribute__((packed));
 
 
+
+enum dma_direction {
+	DMA_ISSUED_BY_LIBTLP = 0,
+	DMA_ISSUED_BY_ADAPTER = 1,
+};
+/* enum dma_reiction is used for struct nettlp.dir. This value
+ * indicates directions of DMAs through the associating struct
+ * nettlp. It is similar ot enum dma_data_direction on Linux kernel,
+ * but they are certainly different things. dma_data_direction in
+ * Linux kernel focuses on directions of DATA transferred by DMA,
+ * thus, for exmaple, DMA_TO_DEVICE indicates DMA Read from a device
+ * that moves data from CPU TO DEVICE. On the other hand,
+ * dma_direction in NetTLP focuses on directions of PCIe Transactions
+ * (not data). For example, DMA_ISSUED_BY_LIBTLP indicates DMA Read
+ * and DMA Write issued from LibTLP to CPU on the remote host through
+ * NetTLP adapter, which move data in the both directions: from CPU TO
+ * DEVICE (DMA Read by LibTLP) and DEVICE TO CPU (DMA Write by
+ * LibTLP).
+ *
+ * dma_direction changes UDP port numbers for encapsulated TLPs.
+ *
+ * - DMA_ISSUED_BY_LIBTLP uses (0x3000 + TLP_tag) as UDP port.
+ * - DMA_ISSUED_BY_ADAPTER uses (0x4000 + TLP_tag[3:0]) as UDP port.
+ *
+ * As a result, PCIe transactions from LIbTLP and PCIe transactions
+ * from CPU/Root Complex on the adapter host can be distinguished by
+ * UDP port numbers (0x3000 or 0x4000). It enables that software
+ * devices can handle both directions on different UDP sockets, CPU
+ * cores, and NIC queueus.
+ */
+
+
 /*
  * structure describing nettlp context
  */
 struct nettlp {
 
 	/* configuration */
-	struct in_addr remote_addr;
-	struct in_addr local_addr;
-	uint16_t requester;
-	uint8_t tag;
+	struct in_addr remote_addr;	/* Remote NetTLP adapter addr */
+	struct in_addr local_addr;	/* Local addr connected to adapter */
+	uint16_t requester;		/* PCI requester ID */
+	uint8_t tag;			/* PCI tag value */
+	enum dma_direction 	dir;	/* Direction */
 
 	/* variable */
 	int sockfd;
 	uint16_t port;
 };
+
 
 
 /*

@@ -248,7 +248,17 @@ int nettlp_init(struct nettlp *nt)
 {
 	int fd;
 
-	nt->port = NETTLP_PORT_BASE + (nt->tag & 0x0F);
+	switch (nt->dir) {
+	case DMA_ISSUED_BY_LIBTLP:
+		nt->port = NETTLP_LIBTLP_PORT_BASE + nt->tag;
+		break;
+	case DMA_ISSUED_BY_ADAPTER:
+		nt->port = NETTLP_ADAPTER_PORT_BASE + (nt->tag & 0x0F);
+		break;
+	default:
+		errno = EINVAL;
+		return -1;
+	}
 
 	fd = nettlp_create_udp_socket(nt->remote_addr, nt->port,
 				      nt->local_addr, nt->port);

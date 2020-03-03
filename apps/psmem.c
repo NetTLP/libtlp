@@ -402,6 +402,7 @@ int main(int argc, char **argv)
 		pth[n].cb = &cb;
 		pth[n].nt = nt;
 		pth[n].nt.tag = n;
+		pth[n].nt.dir = DMA_ISSUED_BY_ADAPTER;
 
 		ret = nettlp_init(&pth[n].nt);
 		if (ret < 0) {
