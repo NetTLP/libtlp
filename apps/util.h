@@ -4,6 +4,8 @@
 #define _TLP_TEST_UTIL_H_
 
 #include <libtlp.h>
+#include <stdio.h>
+#include <arpa/inet.h>
 
 void dump_nettlp(struct nettlp *nt)
 {

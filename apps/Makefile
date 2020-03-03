@@ -9,7 +9,9 @@ PROGNAME = example dma_read dma_write psmem process-list pgd-walk codedump \
 
 all: $(PROGNAME)
 
-.c.o: util.h
+$(PROGNAME): util.h
+
+.c.o:
 	$(CC) $< -o $@
 
 clean:
