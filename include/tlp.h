@@ -44,9 +44,9 @@ struct tlp_hdr {
 #define tlp_is_wo_data(ft) (tlp_fmt_data(ft) == TLP_FMT_WO_DATA)
 #define tlp_is_w_data(ft) (tlp_fmt_data(ft) == TLP_FMT_W_DATA)
 
-#define tlp_set_fmt(ft, dw, wd) \
-		(ft) |= ((dw) & TLP_FMT_DW_MASK) |	\
-			((wd) & TLP_FMT_DATA_MASK)
+#define tlp_set_fmt(ft, dw, wd)						\
+	(ft) = (((ft) & ~(TLP_FMT_DW_MASK | TLP_FMT_DATA_MASK)) |	\
+		((dw) & TLP_FMT_DW_MASK) | ((wd) & TLP_FMT_DATA_MASK))
 
 
 /* TLP Type */
