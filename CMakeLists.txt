@@ -7,8 +7,8 @@ set(CMAKE_C_FLAGS "-Wall -O -g")
 # libtlp
 add_library(tlp STATIC lib/libtlp.c)
 target_include_directories(tlp PUBLIC include)
-install(TARGETS tlp DESTINATION /tmp/lib)
-install(FILES include/libtlp.h include/tlp.h DESTINATION /tmp/include)
+install(TARGETS tlp DESTINATION /usr/local/lib)
+install(FILES include/libtlp.h include/tlp.h DESTINATION /usr/local/include)
 
 # test
 add_executable(test_dma_read test/test_dma_read.c)
