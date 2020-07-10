@@ -57,3 +57,11 @@ target_link_libraries(pcie_cfg_read tlp)
 add_executable(pcie_cfg_write apps/pcie_cfg_write.c)
 target_link_libraries(pcie_cfg_write tlp)
 
+# unittest
+enable_testing()
+add_executable(unittest test.c picotest/picotest.c)
+target_link_libraries(unittest tlp)
+add_test(
+	NAME unittest
+	COMMAND unittest
+)
