@@ -59,9 +59,16 @@ target_link_libraries(pcie_cfg_write tlp)
 
 # unittest
 enable_testing()
-add_executable(unittest test.c picotest/picotest.c)
-target_link_libraries(unittest tlp)
+add_executable(unit_test unit_test.c picotest/picotest.c)
+target_link_libraries(unit_test tlp)
 add_test(
-	NAME unittest
-	COMMAND unittest
+	NAME unit_test
+	COMMAND unit_test
 )
+add_custom_command(
+	TARGET unit_test
+	COMMENT "Run tests"
+	POST_BUILD
+	COMMAND unit_test --output-on-failures
+)
+
