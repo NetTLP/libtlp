@@ -19,5 +19,7 @@ jobs:
       run: mkdir build && cd build && cmake ..
     - name: Build
       run: cmake --build build
+    - name: Debug
+      run: ls && echo 'hoge' && ls build
     - name: Test
       run: cd build && ./unit_test
