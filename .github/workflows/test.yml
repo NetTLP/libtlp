@@ -18,4 +18,6 @@ jobs:
     - name: Configure
       run: mkdir build && cd build && cmake ..
     - name: Build
-      run: cd build && make
+      run: cmake --build build
+    - name: Test
+      run: cd build && ./unit_test
