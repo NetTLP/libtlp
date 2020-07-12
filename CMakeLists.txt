@@ -11,19 +11,19 @@ install(TARGETS tlp DESTINATION /usr/local/lib)
 install(FILES include/libtlp.h include/tlp.h DESTINATION /usr/local/include)
 
 # test
-add_executable(test_dma_read test/test_dma_read.c)
+add_executable(test_dma_read snippet/test_dma_read.c)
 target_link_libraries(test_dma_read tlp)
 
-add_executable(test_dma_write test/test_dma_write.c)
+add_executable(test_dma_write snippet/test_dma_write.c)
 target_link_libraries(test_dma_write tlp)
 
-add_executable(test_msg_bar4 test/test_msg_bar4.c)
+add_executable(test_msg_bar4 snippet/test_msg_bar4.c)
 target_link_libraries(test_msg_bar4 tlp)
 
-add_executable(test_msg_msix test/test_msg_msix.c)
+add_executable(test_msg_msix snippet/test_msg_msix.c)
 target_link_libraries(test_msg_msix tlp)
 
-add_executable(test_msg_devid test/test_msg_devid.c)
+add_executable(test_msg_devid snippet/test_msg_devid.c)
 target_link_libraries(test_msg_devid tlp)
 
 # apps
