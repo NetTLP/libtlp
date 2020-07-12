@@ -59,7 +59,8 @@ target_link_libraries(pcie_cfg_write tlp)
 
 # unittest
 enable_testing()
-add_executable(unit_test unit_test.c picotest/picotest.c)
+add_executable(unit_test test/test.c picotest/picotest.c)
+target_include_directories(unit_test PRIVATE picotest)
 target_link_libraries(unit_test tlp)
 add_test(
 	NAME unit_test

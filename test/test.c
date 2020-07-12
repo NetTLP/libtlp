@@ -1,4 +1,4 @@
-#include "picotest/picotest.h"
+#include "picotest.h"
 
 #include <libtlp.h>
 
@@ -139,7 +139,6 @@ test_tlp_calculate_length(void)
 
 	result_length = tlp_calculate_length(0x0, 4096);
 	ok(result_length == 0);
-
 }
 
 int
