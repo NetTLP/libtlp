@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.1)
 
 project(tlp C)
 
+IF(NOT CMAKE_BUILD_TYPE)
+	SET(CMAKE_BUILD_TYPE Release)
+ENDIF()
+
 set(CMAKE_C_FLAGS "-Wall -O -g")
 
 find_package(Threads REQUIRED)
@@ -60,18 +64,19 @@ add_executable(pcie_cfg_write apps/pcie_cfg_write.c)
 target_link_libraries(pcie_cfg_write tlp)
 
 # unittest
-enable_testing()
 add_executable(unit_test test/test.c picotest/picotest.c)
 target_include_directories(unit_test PRIVATE picotest)
 target_link_libraries(unit_test tlp)
-add_test(
-	NAME unit_test
-	COMMAND unit_test
-)
+
+enable_testing()
+add_test(test unit_test)
+
+IF(CMAKE_BUILD_TYPE MATCHES Release)
 add_custom_command(
 	TARGET unit_test
 	COMMENT "Run tests"
 	POST_BUILD
-	COMMAND unit_test --output-on-failures
+	COMMAND unit_test
 )
+ENDIF()
 
