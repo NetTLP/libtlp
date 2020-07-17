@@ -48,10 +48,10 @@ add_executable(pgd-walk apps/pgd-walk.c)
 target_link_libraries(pgd-walk tlp)
 
 add_executable(codedump apps/codedump.c)
-target_link_libraries(codedump tlp Threads::Threads)
+target_link_libraries(codedump tlp)
 
 add_executable(tlpperf apps/tlpperf.c)
-target_link_libraries(tlpperf tlp pthread)
+target_link_libraries(tlpperf tlp Threads::Threads)
 
 add_executable(pcie_cfg_read apps/pcie_cfg_read.c)
 target_link_libraries(pcie_cfg_read tlp)
