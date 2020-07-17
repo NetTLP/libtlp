@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.1)
 
-project(tlp)
+project(tlp C)
 
 set(CMAKE_C_FLAGS "-Wall -O -g")
+
+find_package(Threads REQUIRED)
 
 # libtlp
 add_library(tlp STATIC lib/libtlp.c)
@@ -37,7 +39,7 @@ add_executable(dma_write apps/dma_write.c)
 target_link_libraries(dma_write tlp)
 
 add_executable(psmem apps/psmem.c)
-target_link_libraries(psmem tlp pthread)
+target_link_libraries(psmem tlp Threads::Threads)
 
 add_executable(process-list apps/process-list.c)
 target_link_libraries(process-list tlp)
@@ -46,7 +48,7 @@ add_executable(pgd-walk apps/pgd-walk.c)
 target_link_libraries(pgd-walk tlp)
 
 add_executable(codedump apps/codedump.c)
-target_link_libraries(codedump tlp)
+target_link_libraries(codedump tlp Threads::Threads)
 
 add_executable(tlpperf apps/tlpperf.c)
 target_link_libraries(tlpperf tlp pthread)
