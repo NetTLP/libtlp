@@ -1,5 +1,7 @@
 #include "picotest.h"
 
+#include <inttypes.h>
+
 #include <libtlp.h>
 
 static void
@@ -7,15 +9,14 @@ calculate_fstdw_lstdw(uintptr_t addr, size_t count, int *result_fst, int *result
 {
 	*result_fst = tlp_calculate_fstdw(addr, count);
 	*result_lst = tlp_calculate_lstdw(addr, count);
-	//note("result_fst=0x%x, result_lst=0x%x", *result_fst, *result_lst);
+	note("result_fst=0x%x, result_lst=0x%x", *result_fst, *result_lst);
 }
 
-static void
-test_tlp_calculate_fstdw_lstdw(void)
+static void test_tlp_calculate_fstdw_lstdw(void)
 {
 	int result_fst, result_lst;
 
-	// zero-length read and write
+	/* zero-length read and write */
 	calculate_fstdw_lstdw(0x0, 0, &result_fst, &result_lst);
 	ok(result_fst == 0 && result_lst == 0);
 
@@ -31,7 +32,7 @@ test_tlp_calculate_fstdw_lstdw(void)
 	calculate_fstdw_lstdw(0x0, 4096, &result_fst, &result_lst);
 	ok(result_fst == 0xf && result_lst == 0xf);
 
-	// zero-length read and write
+	/* zero-length read and write */
 	calculate_fstdw_lstdw(0xa0000003, 0, &result_fst, &result_lst);
 	ok(result_fst == 0x0 && result_lst == 0x0);
 
@@ -62,24 +63,29 @@ test_tlp_calculate_fstdw_lstdw(void)
 	calculate_fstdw_lstdw(0xa0000000, 16, &result_fst, &result_lst);
 	ok(result_fst == 0xf && result_lst == 0xf);
 
-	calculate_fstdw_lstdw(0x00000003, 9, &result_fst, &result_lst);
+	calculate_fstdw_lstdw(0x3, 9, &result_fst, &result_lst);
 	ok(result_fst == 0x8 && result_lst == 0xf);
 
-	calculate_fstdw_lstdw(0x00000003, 10, &result_fst, &result_lst);
+	calculate_fstdw_lstdw(0x3, 10, &result_fst, &result_lst);
 	ok(result_fst == 0x8 && result_lst == 0x1);
 
-	calculate_fstdw_lstdw(0x00000003, 11, &result_fst, &result_lst);
+	calculate_fstdw_lstdw(0x3, 11, &result_fst, &result_lst);
 	ok(result_fst == 0x8 && result_lst == 0x3);
 
-	calculate_fstdw_lstdw(0x00000003, 12, &result_fst, &result_lst);
+	calculate_fstdw_lstdw(0x3, 12, &result_fst, &result_lst);
 	ok(result_fst == 0x8 && result_lst == 0x7);
 
-	calculate_fstdw_lstdw(0x00000003, 13, &result_fst, &result_lst);
+	calculate_fstdw_lstdw(0x3, 13, &result_fst, &result_lst);
 	ok(result_fst == 0x8 && result_lst == 0xf);
+
+//	calculate_fstdw_lstdw(0xfffffffffffffff0, 16, &result_fst, &result_lst);
+//	ok(result_fst == 0xf && result_lst == 0xf);
+//
+//	calculate_fstdw_lstdw(0xffffffffffffffe0, 32, &result_fst, &result_lst);
+//	ok(result_fst == 0xf && result_lst == 0xf);
 }
 
-static void
-test_tlp_calculate_length(void)
+static void test_tlp_calculate_length(void)
 {
 	int result_length;
 
@@ -141,11 +147,110 @@ test_tlp_calculate_length(void)
 //	ok(result_length == 0);
 }
 
-int
-main(int argc, char **argv)
+static void test_tlp_mr_addr(void)
+{
+	struct tlp_mr {
+		struct tlp_mr_hdr mh;
+		uintptr_t addr
+	};
+
+	uintptr_t result_addr;
+	struct tlp_mr mr;
+
+	/* TLP_FMT_3DW */
+	tlp_set_fmt(mr.mh.tlp.fmt_type, TLP_FMT_3DW, TLP_FMT_W_DATA);
+
+	mr.addr = htobe32(0x0);
+	mr.mh.fstdw = 0xf;
+	result_addr = tlp_mr_addr(&mr.mh);
+	//note("%" PRIxPTR ", %" PRIxPTR, be32toh(mr.addr), result_addr);
+	ok(result_addr == be32toh(mr.addr) + 0);
+
+	mr.addr = htobe32(0x0);
+	mr.mh.fstdw = 0xe;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be32toh(mr.addr) + 1);
+
+	mr.addr = htobe32(0x0);
+	mr.mh.fstdw = 0xc;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be32toh(mr.addr) + 2);
+
+	mr.addr = htobe32(0x0);
+	mr.mh.fstdw = 0x8;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be32toh(mr.addr) + 3);
+
+	mr.addr = htobe32(0x1);
+	mr.mh.fstdw = 0xf;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be32toh(mr.addr) + 0);
+
+	mr.addr = htobe32(0x1);
+	mr.mh.fstdw = 0xe;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be32toh(mr.addr) + 1);
+
+	mr.addr = htobe32(0x1);
+	mr.mh.fstdw = 0xc;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be32toh(mr.addr) + 2);
+
+	mr.addr = htobe32(0x1);
+	mr.mh.fstdw = 0x8;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be32toh(mr.addr) + 3);
+
+	/* TLP_FMT_4DW */
+	tlp_set_fmt(mr.mh.tlp.fmt_type, TLP_FMT_4DW, TLP_FMT_W_DATA);
+
+	mr.addr = htobe64(0x0);
+	mr.mh.fstdw = 0xf;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 0);
+
+	mr.addr = htobe64(0x0);
+	mr.mh.fstdw = 0xe;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 1);
+
+	mr.addr = htobe64(0x0);
+	mr.mh.fstdw = 0xc;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 2);
+
+	mr.addr = htobe64(0x0);
+	mr.mh.fstdw = 0x8;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 3);
+
+	mr.addr = htobe64(0x1);
+	mr.mh.fstdw = 0xf;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 0);
+
+	mr.addr = htobe64(0x1);
+	mr.mh.fstdw = 0xe;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 1);
+
+	mr.addr = htobe64(0x1);
+	mr.mh.fstdw = 0xc;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 2);
+
+	mr.addr = htobe64(0x1);
+	mr.mh.fstdw = 0x8;
+	result_addr = tlp_mr_addr(&mr.mh);
+	ok(result_addr == be64toh(mr.addr) + 3);
+}
+
+int main(int argc, char **argv)
 {
 	subtest("tlp_calculate_fstdw_lstdw", test_tlp_calculate_fstdw_lstdw);
 	subtest("tlp_calculate_length", test_tlp_calculate_length);
+	subtest("tlp_calculate_length", test_tlp_calculate_length);
+	subtest("tlp_mr_addr", test_tlp_mr_addr);
 
 	return done_testing();
 }
