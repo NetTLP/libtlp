@@ -9,7 +9,7 @@ calculate_fstdw_lstdw(uintptr_t addr, size_t count, int *result_fst, int *result
 {
 	*result_fst = tlp_calculate_fstdw(addr, count);
 	*result_lst = tlp_calculate_lstdw(addr, count);
-	note("result_fst=0x%x, result_lst=0x%x", *result_fst, *result_lst);
+	//note("result_fst=0x%x, result_lst=0x%x", *result_fst, *result_lst);
 }
 
 static void test_tlp_calculate_fstdw_lstdw(void)
@@ -151,11 +151,11 @@ static void test_tlp_mr_addr(void)
 {
 	struct tlp_mr {
 		struct tlp_mr_hdr mh;
-		uintptr_t addr
+		uintptr_t addr;
 	};
 
 	uintptr_t result_addr;
-	struct tlp_mr mr;
+	struct tlp_mr mr = {};
 
 	/* TLP_FMT_3DW */
 	tlp_set_fmt(mr.mh.tlp.fmt_type, TLP_FMT_3DW, TLP_FMT_W_DATA);
