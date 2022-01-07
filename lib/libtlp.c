@@ -535,7 +535,7 @@ dma_read_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
 		 size_t count, size_t mrrs)
 {
 	uintptr_t dma_addr;
-	size_t len, done;
+	size_t len, max_len, done;
 	ssize_t ret, dma_len;
 
 	done = 0;
@@ -543,7 +543,9 @@ dma_read_aligned(struct nettlp *nt, uintptr_t addr, void *buf,
 	dma_len = count;
 
 	do {
+		max_len = 0x1000 - (dma_addr & 0xFFF);
 		len = dma_len < mrrs ? dma_len : mrrs;
+		len = len < max_len ? len : max_len;
 		ret = dma_read(nt, dma_addr, buf + done, len);
 		if (ret < 0)
 			return ret;
