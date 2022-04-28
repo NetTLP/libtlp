@@ -1,8 +1,14 @@
 cmake_minimum_required(VERSION 3.1)
 
-project(tlp)
+project(tlp C)
+
+IF(NOT CMAKE_BUILD_TYPE)
+	SET(CMAKE_BUILD_TYPE Release)
+ENDIF()
 
 set(CMAKE_C_FLAGS "-Wall -O -g")
+
+find_package(Threads REQUIRED)
 
 # libtlp
 add_library(tlp STATIC lib/libtlp.c)
@@ -11,19 +17,19 @@ install(TARGETS tlp DESTINATION /usr/local/lib)
 install(FILES include/libtlp.h include/tlp.h DESTINATION /usr/local/include)
 
 # test
-add_executable(test_dma_read test/test_dma_read.c)
+add_executable(test_dma_read snippet/test_dma_read.c)
 target_link_libraries(test_dma_read tlp)
 
-add_executable(test_dma_write test/test_dma_write.c)
+add_executable(test_dma_write snippet/test_dma_write.c)
 target_link_libraries(test_dma_write tlp)
 
-add_executable(test_msg_bar4 test/test_msg_bar4.c)
+add_executable(test_msg_bar4 snippet/test_msg_bar4.c)
 target_link_libraries(test_msg_bar4 tlp)
 
-add_executable(test_msg_msix test/test_msg_msix.c)
+add_executable(test_msg_msix snippet/test_msg_msix.c)
 target_link_libraries(test_msg_msix tlp)
 
-add_executable(test_msg_devid test/test_msg_devid.c)
+add_executable(test_msg_devid snippet/test_msg_devid.c)
 target_link_libraries(test_msg_devid tlp)
 
 # apps
@@ -37,7 +43,7 @@ add_executable(dma_write apps/dma_write.c)
 target_link_libraries(dma_write tlp)
 
 add_executable(psmem apps/psmem.c)
-target_link_libraries(psmem tlp pthread)
+target_link_libraries(psmem tlp Threads::Threads)
 
 add_executable(process-list apps/process-list.c)
 target_link_libraries(process-list tlp)
@@ -49,11 +55,28 @@ add_executable(codedump apps/codedump.c)
 target_link_libraries(codedump tlp)
 
 add_executable(tlpperf apps/tlpperf.c)
-target_link_libraries(tlpperf tlp pthread)
+target_link_libraries(tlpperf tlp Threads::Threads)
 
 add_executable(pcie_cfg_read apps/pcie_cfg_read.c)
 target_link_libraries(pcie_cfg_read tlp)
 
 add_executable(pcie_cfg_write apps/pcie_cfg_write.c)
 target_link_libraries(pcie_cfg_write tlp)
+
+# unittest
+add_executable(unit_test test/test.c picotest/picotest.c)
+target_include_directories(unit_test PRIVATE picotest)
+target_link_libraries(unit_test tlp)
+
+enable_testing()
+add_test(test unit_test)
+
+IF(CMAKE_BUILD_TYPE MATCHES Release)
+add_custom_command(
+	TARGET unit_test
+	COMMENT "Run tests"
+	POST_BUILD
+	COMMAND unit_test
+)
+ENDIF()
 

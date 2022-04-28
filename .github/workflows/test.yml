@@ -16,9 +16,9 @@ jobs:
       with:
         submodules: true 
     - name: Configure
-      run: mkdir build && cd build && cmake ..
+      run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=DEBUG ..
     - name: Build
       run: cmake --build build
-      #    - name: Test
-      #      run: cd build && ./unit_test
+    - name: Test
+      run: cd build && ctest --verbose
 
